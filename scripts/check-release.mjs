@@ -33,6 +33,9 @@ if (!registry) {
     const response = await fetch(registry, { signal: AbortSignal.timeout(15_000) });
     if (!response.ok) failures.push(`Registry returned HTTP ${response.status}: ${registry}`);
     else {
+      if (!response.headers.get('access-control-allow-origin')) {
+        failures.push('Registry does not send an Access-Control-Allow-Origin header.');
+      }
       const index = await response.json();
       if (index?.schemaVersion !== 1 || !Array.isArray(index.plugins) || !index.plugins.length) {
         failures.push('Registry does not look like a non-empty schemaVersion 1 index.');
