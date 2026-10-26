@@ -46,12 +46,99 @@
   display: none;
 }
 
+.chip-link {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.chip-link:hover {
+  background: var(--active);
+  color: var(--text);
+  text-decoration: none;
+}
+
 .plugin-row {
   align-items: flex-start;
 }
 
 .plugin-row .row-sub {
   max-width: 60ch;
+}
+
+.plugin-details {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.plugin-details:hover .row-title {
+  color: var(--accent);
+}
+
+.plugin-details:hover .row-sub {
+  color: var(--text);
+}
+
+.plugin-dialog {
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(80vh, 720px);
+  padding: 20px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sheet);
+  background: var(--sheet);
+  color: var(--text);
+}
+
+.plugin-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.plugin-dialog-head {
+  align-items: flex-start;
+  min-height: 0;
+  padding: 0 0 12px;
+}
+
+.plugin-dialog-head .mono {
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.plugin-dialog-description {
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.plugin-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+
+.plugin-detail-label {
+  color: var(--muted);
+  font-size: var(--fs-small);
+  font-weight: 500;
+}
+
+.plugin-dialog .field-label {
+  margin-top: 18px;
+}
+
+.plugin-dialog .chip {
+  height: auto;
+  padding: 4px 8px;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .panel .section-note + .rows {

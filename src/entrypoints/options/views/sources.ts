@@ -7,7 +7,7 @@ import type {
   RegistryRef,
 } from '../../../core/types';
 import { field, pill, plural, switchRow } from '../../../ui/components';
-import { h } from '../../../ui/dom';
+import { h, link } from '../../../ui/dom';
 import type { OptionsContext } from '../context';
 
 export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement {
@@ -224,7 +224,16 @@ function registryPanel(
         'div',
         {},
         h('h2', { text: registry.name }),
-        h('p', { class: 'mono', text: registry.url }),
+        h(
+          'p',
+          { class: 'mono' },
+          h('a', {
+            href: registry.url,
+            target: '_blank',
+            rel: 'noreferrer',
+            text: registry.url,
+          }),
+        ),
         h('p', {
           text: `${plural(registry.pluginCount ?? plugins.length, 'plugin')} · ${
             registry.lastCheckedAt
@@ -286,6 +295,7 @@ function pluginRow(plugin: InstalledPlugin, ctx: OptionsContext): HTMLElement {
     hosts.push(h('span', { class: 'chip', text: `+${descriptor.matches.length - 3}` }));
   }
 
+  const details = pluginDetails(descriptor);
   return h(
     'div',
     { class: 'row plugin-row' },
@@ -293,8 +303,13 @@ function pluginRow(plugin: InstalledPlugin, ctx: OptionsContext): HTMLElement {
       'div',
       { class: 'row-main' },
       h(
-        'span',
-        { class: 'row-copy' },
+        'button',
+        {
+          class: 'row-copy plugin-details',
+          type: 'button',
+          title: `Full details for ${descriptor.name}`,
+          onclick: () => details.showModal(),
+        },
         h(
           'span',
           { class: 'row-title' },
@@ -328,7 +343,72 @@ function pluginRow(plugin: InstalledPlugin, ctx: OptionsContext): HTMLElement {
         },
       }),
     ),
+    details,
   );
+}
+
+function pluginDetails(descriptor: InstalledPlugin['descriptor']): HTMLDialogElement {
+  const dialog = h('dialog', {
+    class: 'plugin-dialog',
+    'aria-label': `Details for ${descriptor.name}`,
+  });
+  const home = descriptor.homepage
+    ? h(
+        'p',
+        { class: 'plugin-detail' },
+        h('span', { class: 'plugin-detail-label', text: 'Homepage' }),
+        link(descriptor.homepage, descriptor.homepage),
+      )
+    : null;
+  const authors =
+    descriptor.authors?.length
+      ? h(
+          'p',
+          { class: 'plugin-detail' },
+          h('span', { class: 'plugin-detail-label', text: 'Authors' }),
+          descriptor.authors.join(', '),
+        )
+      : null;
+
+  dialog.append(
+    h(
+      'div',
+      { class: 'row plugin-dialog-head' },
+      h(
+        'div',
+        {},
+        h('h2', { class: 'dialog-title', text: descriptor.name }),
+        h('p', {
+          class: 'mono',
+          text: `${descriptor.id} · v${descriptor.version}`,
+        }),
+      ),
+      h('button', {
+        class: 'btn quiet tiny',
+        type: 'button',
+        text: 'Close',
+        onclick: () => dialog.close(),
+      }),
+    ),
+    h('p', {
+      class: descriptor.description ? 'plugin-dialog-description' : 'section-note',
+      text: descriptor.description ?? 'No description provided.',
+    }),
+    h('div', {}, authors, home),
+    h('p', {
+      class: 'field-label',
+      text: `Sites (${plural(descriptor.matches.length, 'pattern')})`,
+    }),
+    h(
+      'div',
+      { class: 'chips' },
+      ...descriptor.matches.map((pattern) => h('span', { class: 'chip', text: pattern })),
+    ),
+  );
+  dialog.addEventListener('click', (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+  return dialog;
 }
 
 function addRegistryForm(ctx: OptionsContext): HTMLElement {

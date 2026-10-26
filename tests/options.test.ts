@@ -224,6 +224,75 @@ describe('options UI', () => {
     expect(new Set(labels).size).toBe(labels.length);
   });
 
+  it('links bound sets and opens full plugin details', async () => {
+    currentState.globalBinding.sets = ['01ABC'];
+    currentState.registries = [
+      { id: 'r', name: 'Registry', url: 'https://registry.test/index.json' },
+    ];
+    currentState.plugins = {
+      'r:chat': {
+        key: 'r:chat',
+        registryId: 'r',
+        enabled: true,
+        addedAt: 0,
+        updatedAt: 0,
+        descriptor: {
+          schemaVersion: 1,
+          id: 'chat',
+          name: 'Chat',
+          version: '1.0.0',
+          description: 'A long plugin description with the full selector details.',
+          authors: ['Tester'],
+          homepage: 'https://example.test/plugin',
+          matches: [
+            'https://chat.example/*',
+            'https://*.chat.example/*',
+            'https://alt.example/*',
+            'https://four.example/*',
+            'https://five.example/*',
+          ],
+          chat: {
+            messages: ['.message'],
+            channel: { from: 'constant', value: 'chat' },
+          },
+        },
+      },
+    };
+    mocks.rpc.mockImplementation(async (type: string) => {
+      if (type === 'sevenTv/lookupSet') {
+        return { id: '01ABC', name: 'Test set', emoteCount: 3, preview: [] };
+      }
+      return defaultRpc(type);
+    });
+    window.history.replaceState({}, '', '#bindings');
+    await import('../src/entrypoints/options/main');
+
+    const setLink = await vi.waitFor(() => {
+      const link = document.querySelector<HTMLAnchorElement>('.set-link');
+      expect(link).not.toBeNull();
+      return link as HTMLAnchorElement;
+    });
+    expect(setLink.href).toBe('https://7tv.app/emote-sets/01ABC');
+
+    window.location.hash = '#sources';
+    const button = await waitFor<HTMLButtonElement>('.plugin-details');
+    expect(button.textContent).toContain('A long plugin description');
+
+    const dialog = button.closest('.row')?.querySelector('dialog') as HTMLDialogElement;
+    expect(dialog.textContent).toContain('A long plugin description with the full selector details.');
+    expect(dialog.textContent).toContain('https://five.example/*');
+    expect(dialog.querySelector('a[href="https://example.test/plugin"]')).not.toBeNull();
+
+    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        this.setAttribute('open', '');
+      },
+    });
+    button.click();
+    expect(dialog.hasAttribute('open')).toBe(true);
+  });
+
   it('focuses the new heading after hash navigation', async () => {
     await import('../src/entrypoints/options/main');
     await waitFor('.stat-strip');

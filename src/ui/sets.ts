@@ -5,6 +5,10 @@ const cache = new Map<string, SevenTvSetInfo>();
 const pending = new Map<string, Promise<SevenTvSetInfo | null>>();
 let generation = 0;
 
+export function setUrl(id: string): string {
+  return `https://7tv.app/emote-sets/${encodeURIComponent(id)}`;
+}
+
 export function clearSetLookupCache(): void {
   generation++;
   cache.clear();

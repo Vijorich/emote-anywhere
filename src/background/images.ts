@@ -5,8 +5,8 @@ const ALLOWED_HOSTS = new Set([
 ]);
 
 const MAX_BYTES = 3 * 1024 * 1024;
-const MAX_CACHE = 100;
-const MAX_CACHE_BYTES = 16 * 1024 * 1024;
+const MAX_CACHE = 600;
+const MAX_CACHE_BYTES = 32 * 1024 * 1024;
 const cache = new Map<string, string>();
 const inflight = new Map<string, Promise<{ dataUrl: string }>>();
 let cacheBytes = 0;

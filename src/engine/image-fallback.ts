@@ -1,7 +1,7 @@
 import { rpc } from '../core/rpc';
 
-const MAX_CACHE = 300;
-const MAX_CACHE_BYTES = 16 * 1024 * 1024;
+const MAX_CACHE = 600;
+const MAX_CACHE_BYTES = 32 * 1024 * 1024;
 const cache = new Map<string, string>();
 const inflight = new Map<string, Promise<string | null>>();
 let cacheBytes = 0;
@@ -45,16 +45,25 @@ export function proxiedImage(url: string): Promise<string | null> {
   const existing = inflight.get(url);
   if (existing) return existing;
 
-  const request = rpc<{ dataUrl: string }>('image/fetch', { url })
-    .then((result) => {
-      if (!result.dataUrl.startsWith('data:image/')) return null;
-      store(url, result.dataUrl);
-      return result.dataUrl;
-    })
-    .catch(() => null)
-    .finally(() => {
-      inflight.delete(url);
-    });
+  const request = (async () => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const result = await rpc<{ dataUrl: string }>('image/fetch', { url });
+        if (result.dataUrl.startsWith('data:image/')) {
+          store(url, result.dataUrl);
+          return result.dataUrl;
+        }
+      } catch {
+        // A transient CDN or service-worker failure is retried once.
+      }
+      if (attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+    }
+    return null;
+  })().finally(() => {
+    inflight.delete(url);
+  });
 
   inflight.set(url, request);
   return request;

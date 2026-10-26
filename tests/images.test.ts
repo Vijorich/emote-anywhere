@@ -90,27 +90,27 @@ describe('background image proxy', () => {
     expect(arrayBuffer).not.toHaveBeenCalled();
   });
 
-  it('evicts data URLs when the 16 MiB byte budget is exceeded', async () => {
-    const encoded = 'x'.repeat(4 * 1024 * 1024);
+  it('evicts data URLs when the 32 MiB byte budget is exceeded', async () => {
+    const encoded = 'x'.repeat(12 * 1024 * 1024);
     vi.stubGlobal('btoa', vi.fn(() => encoded));
     const fetchMock = vi.fn(async () => imageResponse([1]));
     vi.stubGlobal('fetch', fetchMock);
     const { fetchImageAsDataUrl } = await import('../src/background/images');
     const url = (name: string) => `https://cdn.7tv.app/${name}.png`;
 
-    for (const name of ['a', 'b', 'c', 'd']) await fetchImageAsDataUrl(url(name));
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    for (const name of ['a', 'b', 'c']) await fetchImageAsDataUrl(url(name));
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     await fetchImageAsDataUrl(url('b'));
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     await fetchImageAsDataUrl(url('a'));
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 });
 
 describe('content image fallback', () => {
-  it('evicts data URLs when the 16 MiB byte budget is exceeded', async () => {
-    const a = `data:image/png;base64,${'a'.repeat(9 * 1024 * 1024)}`;
-    const b = `data:image/png;base64,${'b'.repeat(9 * 1024 * 1024)}`;
+  it('evicts data URLs when the 32 MiB byte budget is exceeded', async () => {
+    const a = `data:image/png;base64,${'a'.repeat(17 * 1024 * 1024)}`;
+    const b = `data:image/png;base64,${'b'.repeat(17 * 1024 * 1024)}`;
     const aUrl = 'https://cdn.7tv.app/a.png';
     const bUrl = 'https://cdn.7tv.app/b.png';
     rpcMock.mockImplementation(async (_type: string, payload: { url: string }) => ({

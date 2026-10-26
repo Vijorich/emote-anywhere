@@ -5,9 +5,14 @@ interface CacheEntry<T> {
   fetchedAt: number;
   data: T;
   ttlMs?: number;
+  /** Bumped when the cached URL format changes; old entries are discarded. */
+  version?: number;
   /** Serialized size, stored so eviction does not re-stringify every entry. */
   bytes?: number;
 }
+
+/** v2: 7TV image URLs prefer AVIF. */
+const CACHE_VERSION = 2;
 
 type CacheMap = Record<string, CacheEntry<unknown>>;
 type Inflight = { generation: number; promise: Promise<unknown> };
@@ -54,11 +59,17 @@ function evict(cache: CacheMap, keep?: string): boolean {
 
 function reindex(cache: CacheMap): boolean {
   cacheBytes = 0;
-  for (const entry of Object.values(cache)) {
+  let changed = false;
+  for (const [key, entry] of Object.entries(cache)) {
+    if (entry.version !== CACHE_VERSION) {
+      delete cache[key];
+      changed = true;
+      continue;
+    }
     entry.bytes = measure(entry);
     cacheBytes += entry.bytes;
   }
-  return evict(cache);
+  return evict(cache) || changed;
 }
 
 async function loadCache(): Promise<CacheMap> {
@@ -119,7 +130,7 @@ function store<T>(cache: CacheMap, key: string, data: T, ttlMs: number): boolean
   const hadEntry = cache[key] !== undefined;
   removeEntry(cache, key);
 
-  const entry: CacheEntry<T> = { fetchedAt: Date.now(), data, ttlMs };
+  const entry: CacheEntry<T> = { fetchedAt: Date.now(), data, ttlMs, version: CACHE_VERSION };
   const bytes = measure(entry);
   if (bytes > MAX_CACHE_BYTES) return pruned || hadEntry;
   entry.bytes = bytes;

@@ -460,10 +460,11 @@ export class EmotePicker {
   private insertSelected(): void {
     const emote = this.visible[this.selected];
     if (!emote || !this.composer?.isConnected) return;
-    if (insertIntoComposer(this.composer, `${emote.code} `, this.savedRange)) {
-      this.savedRange = null;
-      this.close(true);
-    }
+    if (!insertIntoComposer(this.composer, `${emote.code} `, this.savedRange)) return;
+    // Keep the picker open for another pick and remember the caret that the
+    // insertion just moved, so the next emote lands right after this one.
+    this.saveComposerSelection();
+    this.input?.focus();
   }
 
   private loadProxied(img: HTMLImageElement, source: string): void {
@@ -523,6 +524,7 @@ export class EmotePicker {
         cell.tabIndex = index === this.selected ? 0 : -1;
         const img = document.createElement('img');
         img.alt = emote.code;
+        img.decoding = 'async';
         img.loading = 'lazy';
         img.draggable = false;
         if (this.descriptor.proxyImages) {

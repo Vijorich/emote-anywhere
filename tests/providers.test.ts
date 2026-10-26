@@ -98,7 +98,7 @@ describe('7TV providers', () => {
       emotes: [
         {
           code: 'ZeroWidth',
-          url: 'https://cdn.7tv.app/emote/zero-width/2x.webp',
+          url: 'https://cdn.7tv.app/emote/zero-width/2x.avif',
           flags: 257,
           provider: '7tv',
         },

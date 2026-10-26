@@ -11,7 +11,7 @@ fixed without shipping a new extension version.
 
 ## Status
 
-Public beta (0.1.0). Chrome/Edge (123+) and Firefox MV3. The engine, plugin registry,
+Public beta (0.2.0). Chrome/Edge (123+) and Firefox MV3. The engine, plugin registry,
 settings page, popup and emote picker are implemented; the VK adapter is the first
 plugin. Release builds are attached to [GitHub releases](https://github.com/Vijorich/emote-anywhere/releases).
 

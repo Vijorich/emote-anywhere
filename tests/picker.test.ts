@@ -114,7 +114,7 @@ afterEach(() => {
 });
 
 describe('EmotePicker composer selection', () => {
-  it('FAB preserves a middle contenteditable caret through insertion', () => {
+  it('FAB preserves a middle contenteditable caret through repeated insertions', () => {
     const composer = contentComposer();
     startPicker();
     selectText(composer, 1);
@@ -126,8 +126,28 @@ describe('EmotePicker composer selection', () => {
     key(input, 'Enter');
 
     expect(composer.textContent).toBe('Azero B');
-    expect(panel.hidden).toBe(true);
-    expect(document.activeElement).toBe(composer);
+    expect(panel.hidden).toBe(false);
+    expect(shadow.activeElement).toBe(input);
+
+    key(input, 'Enter');
+    expect(composer.textContent).toBe('Azero zero B');
+    expect(panel.hidden).toBe(false);
+  });
+
+  it('keeps the picker open for multiple clicked emotes', () => {
+    const composer = contentComposer();
+    startPicker();
+    selectText(composer, 1);
+
+    openFromFab();
+    const all = cells();
+    all[0]!.click();
+    expect(composer.textContent).toBe('Azero B');
+    expect(ui().panel.hidden).toBe(false);
+
+    all[1]!.click();
+    expect(composer.textContent).toBe('Azero one B');
+    expect(ui().panel.hidden).toBe(false);
   });
 
   it('saves the caret on FAB pointerdown before focus moves', () => {
@@ -142,7 +162,7 @@ describe('EmotePicker composer selection', () => {
     key(input, 'Enter');
 
     expect(composer.textContent).toBe('Azero B');
-    expect(document.activeElement).toBe(composer);
+    expect(ui().shadow.activeElement).toBe(ui().input);
   });
 
   it('replaces a saved contenteditable range', () => {
@@ -203,7 +223,7 @@ describe('EmotePicker composer selection', () => {
 
     expect(composer.value).toBe('Azero B');
     expect(composer.selectionStart).toBe(6);
-    expect(document.activeElement).toBe(composer);
+    expect(ui().shadow.activeElement).toBe(ui().input);
   });
 });
 
@@ -264,7 +284,7 @@ describe('EmotePicker keyboard grid', () => {
 
     key(originalCells[2]!, 'Enter');
     expect(composer.textContent).toBe('ABtwo ');
-    expect(document.activeElement).toBe(composer);
+    expect(shadow.activeElement).toBe(input);
   });
 });
 

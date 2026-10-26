@@ -51,7 +51,9 @@ export interface SevenTvSetData {
 
 function pickFile(files: SevenTvFile[] | undefined): SevenTvFile | undefined {
   if (!files?.length) return undefined;
-  const preferred = ['2x.webp', '2x.avif', '2x.png', '1x.webp', '1x.avif', '1x.png'];
+  // AVIF is roughly a quarter of the WebP payload on cdn.7tv.app, which keeps
+  // the per-emote background proxy well inside its request timeout.
+  const preferred = ['2x.avif', '1x.avif', '2x.webp', '1x.webp', '2x.png', '1x.png'];
   for (const name of preferred) {
     const file = files.find((item) => item.name === name);
     if (file) return file;

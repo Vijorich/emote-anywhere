@@ -169,6 +169,17 @@ describe('emote cache', () => {
     await expect(cached('key', 60_000, async () => 'other')).resolves.toBe('value');
   });
 
+  it('discards entries stored with an older URL format', async () => {
+    storage.get.mockResolvedValue({
+      [KEY]: { old: { fetchedAt: Date.now(), data: 'stored-without-version' } },
+    });
+    const { cached } = await import('../src/core/emotes/cache');
+    const loader = vi.fn(async () => 'fresh');
+
+    expect(await cached('old', 60_000, loader)).toBe('fresh');
+    expect(loader).toHaveBeenCalledOnce();
+  });
+
   it('deduplicates inflight loads for the same key', async () => {
     const { cached } = await import('../src/core/emotes/cache');
     const result = deferred<string>();

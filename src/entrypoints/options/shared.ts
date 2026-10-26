@@ -1,7 +1,7 @@
 import type { AppState } from '../../core/types';
 import { plural, shortId } from '../../ui/components';
 import { h } from '../../ui/dom';
-import { lookupSet } from '../../ui/sets';
+import { lookupSet, setUrl } from '../../ui/sets';
 
 export function setRow(
   id: string,
@@ -37,7 +37,18 @@ export function setRow(
   return h(
     'div',
     { class: 'row' },
-    h('div', { class: 'row-main' }, media, h('span', { class: 'row-copy' }, title, sub)),
+    h(
+      'a',
+      {
+        class: 'row-main set-link',
+        href: setUrl(id),
+        target: '_blank',
+        rel: 'noreferrer',
+        title: `Open set ${id} on 7TV`,
+      },
+      media,
+      h('span', { class: 'row-copy' }, title, sub),
+    ),
     options.onRemove
       ? h(
           'div',
@@ -56,7 +67,17 @@ export function setRow(
 
 export function bindingChip(id: string): HTMLElement {
   const label = h('span', { class: 'chip-label', text: shortId(id) });
-  const chip = h('span', { class: 'chip', title: id }, label);
+  const chip = h(
+    'a',
+    {
+      class: 'chip chip-link',
+      href: setUrl(id),
+      target: '_blank',
+      rel: 'noreferrer',
+      title: id,
+    },
+    label,
+  );
   void lookupSet(id).then((info) => {
     if (!info) return;
     label.textContent = info.name;

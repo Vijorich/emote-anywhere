@@ -16,7 +16,7 @@ import type {
 import { matchSpecificity, urlMatchesAny } from '../../core/url-match';
 import { brandMark, pill, plural, shortId, switchRow } from '../../ui/components';
 import { h } from '../../ui/dom';
-import { clearSetLookupCache, lookupSet } from '../../ui/sets';
+import { clearSetLookupCache, lookupSet, setUrl } from '../../ui/sets';
 
 const appElement = document.querySelector<HTMLElement>('#app');
 if (!appElement) throw new Error('Missing #app');
@@ -122,7 +122,13 @@ function currentBinding(plugin: InstalledPlugin): Binding | null {
 }
 
 function setChip(setId: string, onRemove: () => void): HTMLElement {
-  const label = h('span', { class: 'chip-label', text: shortId(setId) });
+  const label = h('a', {
+    class: 'chip-label',
+    href: setUrl(setId),
+    target: '_blank',
+    rel: 'noreferrer',
+    text: shortId(setId),
+  });
   const chip = h(
     'span',
     { class: 'chip', title: setId },
@@ -268,7 +274,13 @@ function globalCard(current: AppState): HTMLElement {
         'div',
         { class: 'global-list' },
         ...sets.map((id) => {
-          const label = h('span', { class: 'row-title', text: shortId(id) });
+          const label = h('a', {
+            class: 'row-title set-link',
+            href: setUrl(id),
+            target: '_blank',
+            rel: 'noreferrer',
+            text: shortId(id),
+          });
           const count = h('span', { class: 'pill', text: '7TV' });
           void lookupSet(id).then((info) => {
             if (!info) return;
