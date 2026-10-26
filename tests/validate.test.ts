@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_SETTINGS } from '../src/core/defaults';
 import {
+  normalizeSettings,
   parseCustomSet,
   parsePluginDescriptor,
   parseRegistryIndex,
@@ -67,6 +69,15 @@ describe('custom sets', () => {
     expect(() =>
       parseCustomSet({ name: 'Bad', emotes: [{ code: 'a', url: 'javascript:alert(1)' }] }),
     ).toThrow();
+  });
+});
+
+describe('settings', () => {
+  it('defaults emote size to 1.2x and clamps the range', () => {
+    expect(DEFAULT_SETTINGS.emoteScale).toBe(1.2);
+    expect(normalizeSettings(undefined, DEFAULT_SETTINGS).emoteScale).toBe(1.2);
+    expect(normalizeSettings({ emoteScale: 0.1 }, DEFAULT_SETTINGS).emoteScale).toBe(0.5);
+    expect(normalizeSettings({ emoteScale: 9 }, DEFAULT_SETTINGS).emoteScale).toBe(2);
   });
 });
 

@@ -22,6 +22,8 @@ export function h<K extends keyof HTMLElementTagNameMap>(
       for (const [event, listener] of Object.entries(value as Record<string, EventListener>)) {
         node.addEventListener(event, listener);
       }
+    } else if (key.startsWith('on') && typeof value === 'function') {
+      node.addEventListener(key.slice(2).toLowerCase(), value as EventListener);
     } else if (key === 'value' && 'value' in node) {
       (node as HTMLInputElement).value = String(value);
     } else if (key === 'checked' && 'checked' in node) {

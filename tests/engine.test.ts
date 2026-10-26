@@ -117,6 +117,18 @@ describe('ChatEngine', () => {
     instance.stop();
   });
 
+  it('renders at the configured scale', () => {
+    document.body.innerHTML = `<div class="msg"><span class="body">peepoSad</span></div>`;
+    const instance = new ChatEngine({
+      descriptor: descriptor(),
+      emotes,
+      settings: { globalMode: false, emoteScale: 1.2 },
+    });
+    instance.start();
+    expect(document.querySelector<HTMLElement>('.ea-e')?.style.height).toBe('1.8em');
+    instance.stop();
+  });
+
   it('groups zero-width emotes onto the previous emote', () => {
     document.body.innerHTML = `<div class="msg"><span class="body">base overlay</span></div>`;
     const instance = engine();

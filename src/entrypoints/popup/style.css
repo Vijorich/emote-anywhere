@@ -181,6 +181,22 @@ label.check {
   gap: 9px;
 }
 
+.range-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+input[type='range'] {
+  width: 130px;
+  accent-color: var(--accent);
+}
+
+.range-wrap button {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
 .form {
   display: grid;
   gap: 8px;

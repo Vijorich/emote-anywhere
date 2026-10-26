@@ -1,5 +1,6 @@
 import './style.css';
 import { browser } from 'wxt/browser';
+import { DEFAULT_EMOTE_SCALE } from '../../core/defaults';
 import { rpc } from '../../core/rpc';
 import type {
   AppSettings,
@@ -11,6 +12,7 @@ import type {
 } from '../../core/types';
 import { matchSpecificity, urlMatchesAny } from '../../core/url-match';
 import { h } from '../../ui/dom';
+import { scaleControl } from '../../ui/scale';
 
 const appElement = document.querySelector<HTMLElement>('#app');
 if (!appElement) throw new Error('Missing #app');
@@ -294,6 +296,50 @@ function globalModeCard(): HTMLElement {
   );
 }
 
+function sizeCard(): HTMLElement {
+  if (!state) return h('div');
+  return h(
+    'div',
+    { class: 'card' },
+    h(
+      'div',
+      { class: 'row' },
+      h(
+        'div',
+        {},
+        h('h2', { text: 'Emote size' }),
+        h('div', { class: 'muted small', text: 'Default 1.2×' }),
+      ),
+      scaleControl(
+        state.settings.emoteScale,
+        (value) => {
+          void rpc<AppSettings>('settings/update', { patch: { emoteScale: value } })
+            .then(() => refresh(false))
+            .catch((error: unknown) => {
+              show(String(error), 'error');
+              render();
+            });
+        },
+        h('button', {
+          type: 'button',
+          text: 'Default',
+          title: `Reset to ${DEFAULT_EMOTE_SCALE}×`,
+          onclick: () => {
+            void rpc<AppSettings>('settings/update', {
+              patch: { emoteScale: DEFAULT_EMOTE_SCALE },
+            })
+              .then(() => refresh(false))
+              .catch((error: unknown) => {
+                show(String(error), 'error');
+                render();
+              });
+          },
+        }),
+      ),
+    ),
+  );
+}
+
 function render(): void {
   app.replaceChildren();
 
@@ -358,6 +404,7 @@ function render(): void {
           ),
         );
       }
+      app.append(sizeCard());
       app.append(globalModeCard());
       app.append(
         h(

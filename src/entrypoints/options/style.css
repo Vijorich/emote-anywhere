@@ -220,6 +220,30 @@ label.check {
   gap: 10px;
 }
 
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.range-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+input[type='range'] {
+  width: 200px;
+  accent-color: var(--accent);
+}
+
+.range-wrap button {
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
 .divider {
   height: 1px;
   background: var(--border);

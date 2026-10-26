@@ -1,6 +1,7 @@
 import './style.css';
 import { browser } from 'wxt/browser';
 import { PLUGIN_DOC_URL, PROJECT_URL } from '../../core/config';
+import { DEFAULT_EMOTE_SCALE } from '../../core/defaults';
 import { rpc } from '../../core/rpc';
 import type {
   AppSettings,
@@ -10,6 +11,7 @@ import type {
   RegistryRef,
 } from '../../core/types';
 import { h, link } from '../../ui/dom';
+import { scaleControl } from '../../ui/scale';
 
 const appElement = document.querySelector<HTMLElement>('#app');
 if (!appElement) throw new Error('Missing #app');
@@ -460,20 +462,6 @@ function bindingsSection(): HTMLElement {
 function settingsSection(): HTMLElement {
   if (!state) return h('div');
   const { settings } = state;
-  const scale = h('input', {
-    type: 'number',
-    min: '0.5',
-    max: '2',
-    step: '0.1',
-    value: String(settings.emoteScale),
-    on: {
-      change: (event: Event) => {
-        const value = Number((event.currentTarget as HTMLInputElement).value);
-        if (!Number.isFinite(value)) return;
-        updateSettings({ emoteScale: value });
-      },
-    },
-  });
   return h(
     'section',
     { class: 'card' },
@@ -490,7 +478,25 @@ function settingsSection(): HTMLElement {
       checkbox('Show the emote picker (Alt+E)', settings.pickerEnabled, (checked) =>
         updateSettings({ pickerEnabled: checked }),
       ),
-      h('label', { class: 'check' }, 'Emote size', scale, '×'),
+      h(
+        'div',
+        { class: 'setting-row' },
+        h(
+          'div',
+          {},
+          h('div', { text: 'Emote size' }),
+          h('div', {
+            class: 'muted small',
+            text: 'Relative to the chat text. Default is 1.2×.',
+          }),
+        ),
+        scaleControl(settings.emoteScale, (value) => updateSettings({ emoteScale: value }), h('button', {
+          type: 'button',
+          text: 'Default',
+          title: `Reset to ${DEFAULT_EMOTE_SCALE}×`,
+          onclick: () => updateSettings({ emoteScale: DEFAULT_EMOTE_SCALE }),
+        })),
+      ),
       h(
         'div',
         { class: 'actions' },

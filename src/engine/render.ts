@@ -120,7 +120,7 @@ export function createEmoteSpan(
   scale: number,
   proxyImages = false,
 ): HTMLSpanElement {
-  const heightEm = EMOTE_BASE_HEIGHT_EM * scale;
+  const heightEm = Number((EMOTE_BASE_HEIGHT_EM * scale).toFixed(2));
   const base = group.tokens.find((token) => !isZeroWidth(token.emote)) ?? group.tokens[0];
   if (!base) throw new Error('Emote group without tokens');
 

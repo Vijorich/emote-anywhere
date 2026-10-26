@@ -20,6 +20,9 @@ Three independent layers:
 - **Providers** (`src/core/emotes`) — 7TV, BTTV and FFZ clients plus custom
   `code → URL` sets.
 
+Emote size is a setting (slider in settings and popup). The default is **1.2×**
+(1.8em at the 1.5em base); the range is 0.5–2.0×.
+
 The background worker owns all state and emote resolution. Content scripts ask it for
 the plugin matching the current URL and for the resolved emote set. There is no
 remote code execution: a registry is JSON, not a script.

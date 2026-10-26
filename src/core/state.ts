@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser';
 import { DEFAULT_REGISTRY_ID, DEFAULT_REGISTRY_NAME, DEFAULT_REGISTRY_URL, STATE_KEY } from './config';
+import { DEFAULT_SETTINGS } from './defaults';
 import { normalizeState } from './validate';
 import type { AppSettings, AppState } from './types';
 
@@ -7,11 +8,8 @@ export function createDefaultState(): AppState {
   return {
     version: 1,
     settings: {
-      globalMode: false,
-      emoteScale: 1,
-      autoChannel: true,
-      pickerEnabled: true,
-      providers: { sevenTv: true, bttv: true, ffz: true },
+      ...DEFAULT_SETTINGS,
+      providers: { ...DEFAULT_SETTINGS.providers },
     },
     registries: [
       {
