@@ -9,9 +9,15 @@ interface MemoryEntry {
   index: RegistryIndex;
 }
 
+interface RegistryFetchResult {
+  index: RegistryIndex;
+  stale: boolean;
+  error: string;
+}
+
 const memory = new Map<string, MemoryEntry>();
-const inflight = new Map<string, Promise<RegistryIndex>>();
-let refreshPromise: Promise<Record<string, string>> | null = null;
+const inflight = new Map<string, Promise<RegistryFetchResult>>();
+const refreshPromises = new Map<boolean, Promise<Record<string, string>>>();
 
 export function normalizeRegistryUrl(input: string): string {
   let parsed: URL;
@@ -26,10 +32,47 @@ export function normalizeRegistryUrl(input: string): string {
   return parsed.toString();
 }
 
-export async function fetchRegistry(url: string, force = false): Promise<RegistryIndex> {
+function errorMessage(error: unknown): string {
+  return (error instanceof Error ? error.message : String(error)) || 'Registry refresh failed';
+}
+
+async function readRegistryBody(response: Response): Promise<string> {
+  if (!response.body) {
+    const buffer = await response.arrayBuffer();
+    if (buffer.byteLength > MAX_REGISTRY_BYTES) throw new Error('Registry file is too large');
+    return new TextDecoder().decode(buffer);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const chunks: string[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        chunks.push(decoder.decode());
+        return chunks.join('');
+      }
+      bytes += value.byteLength;
+      if (bytes > MAX_REGISTRY_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error('Registry file is too large');
+      }
+      chunks.push(decoder.decode(value, { stream: true }));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function fetchRegistryResult(url: string, force: boolean): Promise<RegistryFetchResult> {
   const cached = memory.get(url);
-  if (!force && cached && Date.now() - cached.at < REGISTRY_TTL_MS) return cached.index;
-  const existing = inflight.get(url);
+  if (!force && cached && Date.now() - cached.at < REGISTRY_TTL_MS) {
+    return { index: cached.index, stale: false, error: '' };
+  }
+  const key = `${force ? 'forced' : 'normal'}:${url}`;
+  const existing = inflight.get(key);
   if (existing) return existing;
 
   const request = (async () => {
@@ -40,8 +83,7 @@ export async function fetchRegistry(url: string, force = false): Promise<Registr
         signal: AbortSignal.timeout(15_000),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const body = await response.text();
-      if (body.length > MAX_REGISTRY_BYTES) throw new Error('Registry file is too large');
+      const body = await readRegistryBody(response);
       let parsed: unknown;
       try {
         parsed = JSON.parse(body);
@@ -50,83 +92,128 @@ export async function fetchRegistry(url: string, force = false): Promise<Registr
       }
       const index = parseRegistryIndex(parsed);
       memory.set(url, { at: Date.now(), index });
-      return index;
+      return { index, stale: false, error: '' };
     } catch (error) {
-      if (cached) return cached.index;
+      if (cached && !force) {
+        return { index: cached.index, stale: true, error: errorMessage(error) };
+      }
       throw error;
     } finally {
-      inflight.delete(url);
+      inflight.delete(key);
     }
   })();
 
-  inflight.set(url, request);
+  inflight.set(key, request);
   return request;
 }
 
-function upsertPlugins(
+export async function fetchRegistry(url: string, force = false): Promise<RegistryIndex> {
+  return (await fetchRegistryResult(url, force)).index;
+}
+
+function syncPlugins(
   state: AppState,
   registryId: string,
   descriptors: PluginDescriptor[],
   now: number,
 ): void {
+  const existingForRegistry = Object.values(state.plugins).filter(
+    (plugin) => plugin.registryId === registryId,
+  ).length;
+  if (!descriptors.length && existingForRegistry) {
+    throw new Error('Registry returned no plugins; keeping the existing plugins');
+  }
+  const expected = new Set<string>();
   for (const descriptor of descriptors) {
     const key = `${registryId}:${descriptor.id}`;
+    expected.add(key);
     const existing = state.plugins[key];
+    const updatedAt =
+      existing && JSON.stringify(existing.descriptor) === JSON.stringify(descriptor)
+        ? existing.updatedAt
+        : now;
     state.plugins[key] = {
       key,
       registryId,
       descriptor,
       enabled: existing?.enabled ?? false,
       addedAt: existing?.addedAt ?? now,
-      updatedAt: now,
+      updatedAt,
     };
+  }
+  for (const [key, plugin] of Object.entries(state.plugins)) {
+    if (plugin.registryId !== registryId || expected.has(key)) continue;
+    delete state.plugins[key];
+    for (const [bindingKey, binding] of Object.entries(state.bindings)) {
+      if (binding.pluginKey === key) delete state.bindings[bindingKey];
+    }
   }
 }
 
 function applyIndex(state: AppState, registry: RegistryRef, index: RegistryIndex, now: number): void {
   registry.lastCheckedAt = now;
   registry.pluginCount = index.plugins.length;
-  if (index.name) registry.name = index.name;
+  if (index.name && !registry.name) registry.name = index.name;
   delete registry.lastError;
-  upsertPlugins(state, registry.id, index.plugins, now);
+  syncPlugins(state, registry.id, index.plugins, now);
 }
 
 export async function refreshRegistries(force = false): Promise<Record<string, string>> {
-  if (refreshPromise) return refreshPromise;
+  const existing = refreshPromises.get(force);
+  if (existing) return existing;
 
-  refreshPromise = (async () => {
+  const request = (async () => {
     const state = await getState();
     const targets = state.registries.filter((registry) => {
       if (force) return true;
       if (!registry.lastCheckedAt) return true;
       return Date.now() - registry.lastCheckedAt >= REGISTRY_TTL_MS;
     });
-    if (!targets.length) return {};
+    if (!targets.length) {
+      await syncContentScript();
+      return {};
+    }
 
     const results = await Promise.all(
       targets.map(async (registry) => {
         try {
-          return { id: registry.id, index: await fetchRegistry(registry.url, force), error: '' };
-        } catch (error) {
+          const result = await fetchRegistryResult(registry.url, force);
           return {
             id: registry.id,
-            index: null,
-            error: error instanceof Error ? error.message : String(error),
+            index: result.stale ? null : result.index,
+            error: result.error,
           };
+        } catch (error) {
+          return { id: registry.id, index: null, error: errorMessage(error) };
         }
       }),
     );
 
+    const current = await getState();
+    const checked = results.map((result) => {
+      if (!result.index) return result;
+      const existing = Object.values(current.plugins).filter(
+        (plugin) => plugin.registryId === result.id,
+      ).length;
+      if (!result.index.plugins.length && existing) {
+        return {
+          ...result,
+          index: null,
+          error: 'Registry returned no plugins; keeping the existing plugins',
+        };
+      }
+      return result;
+    });
+
     const errors: Record<string, string> = {};
     const now = Date.now();
     await mutateState((next) => {
-      for (const result of results) {
+      for (const result of checked) {
         const registry = next.registries.find((item) => item.id === result.id);
         if (!registry) continue;
         if (result.index) {
           applyIndex(next, registry, result.index, now);
         } else {
-          registry.lastCheckedAt = now;
           registry.lastError = result.error;
           errors[registry.id] = result.error;
         }
@@ -134,11 +221,14 @@ export async function refreshRegistries(force = false): Promise<Record<string, s
     });
     await syncContentScript();
     return errors;
-  })().finally(() => {
-    refreshPromise = null;
-  });
+  })();
 
-  return refreshPromise;
+  refreshPromises.set(force, request);
+  try {
+    return await request;
+  } finally {
+    if (refreshPromises.get(force) === request) refreshPromises.delete(force);
+  }
 }
 
 export async function addRegistry(urlInput: string, nameInput: string): Promise<RegistryRef> {

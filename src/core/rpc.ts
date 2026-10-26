@@ -1,5 +1,5 @@
 import { browser } from 'wxt/browser';
-import type { RpcRequest, RpcResponse } from './types';
+import type { RpcRequest, RpcResponse, RpcSender } from './types';
 
 export async function rpc<T>(request: RpcRequest): Promise<T>;
 export async function rpc<T>(
@@ -34,7 +34,7 @@ export async function rpc<T>(
   return response.data;
 }
 
-export type RpcHandler = (request: RpcRequest, sender: unknown) => Promise<unknown>;
+export type RpcHandler = (request: RpcRequest, sender: RpcSender) => Promise<unknown>;
 
 export function registerRpcHandler(handler: RpcHandler): void {
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -42,7 +42,7 @@ export function registerRpcHandler(handler: RpcHandler): void {
     if (!request || typeof request !== 'object' || typeof request.type !== 'string') {
       return undefined;
     }
-    handler(request, sender).then(
+    handler(request, sender as RpcSender).then(
       (data) => sendResponse({ ok: true, data } satisfies RpcResponse<unknown>),
       (error: unknown) =>
         sendResponse({

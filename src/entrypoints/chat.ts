@@ -1,12 +1,14 @@
 import { browser } from 'wxt/browser';
 import { defineUnlistedScript } from 'wxt/utils/define-unlisted-script';
-import { resolveChannel, safeChannelKey } from '../core/channel';
+import { bindingKey, resolveChannel, safeChannelKey } from '../core/channel';
 import { rpc } from '../core/rpc';
 import type {
+  AppState,
   ChatRegistration,
   ContentContext,
   PluginMatch,
 } from '../core/types';
+import { urlMatchesAny } from '../core/url-match';
 import type { ChannelRule } from '../core/types';
 import { ChatEngine } from '../engine/engine';
 import { EmotePicker } from '../picker/picker';
@@ -25,6 +27,46 @@ export default defineUnlistedScript(() => {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function valueChanged(before: unknown, after: unknown): boolean {
+  return JSON.stringify(before) !== JSON.stringify(after);
+}
+
+export function shouldSyncStateChange(
+  change: { oldValue?: unknown; newValue?: unknown },
+  url: string,
+  context: Pick<ContentContext, 'pluginKey' | 'channelKey'> | null,
+): boolean {
+  const before = change.oldValue as AppState | undefined;
+  const after = change.newValue as AppState | undefined;
+  if (!before || !after) return true;
+  if (
+    valueChanged(before.settings, after.settings) ||
+    valueChanged(before.globalBinding, after.globalBinding) ||
+    valueChanged(before.customSets, after.customSets)
+  ) {
+    return true;
+  }
+
+  const pluginKeys = new Set([...Object.keys(before.plugins), ...Object.keys(after.plugins)]);
+  for (const key of pluginKeys) {
+    const oldPlugin = before.plugins[key];
+    const newPlugin = after.plugins[key];
+    if (!valueChanged(oldPlugin, newPlugin)) continue;
+    if (
+      (oldPlugin?.enabled && urlMatchesAny(url, oldPlugin.descriptor.matches)) ||
+      (newPlugin?.enabled && urlMatchesAny(url, newPlugin.descriptor.matches))
+    ) {
+      return true;
+    }
+  }
+
+  if (context) {
+    const key = bindingKey(context.pluginKey, context.channelKey);
+    return valueChanged(before.bindings[key], after.bindings[key]);
+  }
+  return false;
 }
 
 function start(): void {
@@ -51,6 +93,10 @@ function start(): void {
     }, delay);
   };
 
+  const publishContext = (next: ContentContext | null): void => {
+    void rpc('frame/context', { context: next }).catch(() => undefined);
+  };
+
   const resolveWithRetry = async (
     rules: ChannelRule | ChannelRule[],
     current: number,
@@ -75,15 +121,30 @@ function start(): void {
       match = await rpc<PluginMatch | null>('plugin/forUrl', { url: location.href });
     } catch (error) {
       console.warn('[emote-anywhere] plugin lookup failed', error);
+      publishContext(null);
       scheduleSync(3000);
       return;
     }
-    if (current !== generation || !match) return;
+    if (current !== generation) return;
+    if (!match) {
+      publishContext(null);
+      return;
+    }
 
     const channelValue = await resolveWithRetry(match.descriptor.chat.channel, current);
     if (current !== generation) return;
-    const sevenTvId = match.descriptor.chat.sevenTv
-      ? await resolveWithRetry(match.descriptor.chat.sevenTv.id, current)
+
+    // The 7TV channel lookup must not hold up the first render. Try briefly,
+    // then register without it and resync when the ID appears.
+    const sevenTvRules =
+      match.settings.autoChannel && match.descriptor.chat.sevenTv
+        ? match.descriptor.chat.sevenTv.id
+        : null;
+    const sevenTvPromise = sevenTvRules
+      ? resolveWithRetry(sevenTvRules, current)
+      : null;
+    const sevenTvId = sevenTvPromise
+      ? await Promise.race([sevenTvPromise, sleep(250).then(() => undefined)])
       : undefined;
     if (current !== generation) return;
 
@@ -97,10 +158,17 @@ function start(): void {
       });
     } catch (error) {
       console.warn('[emote-anywhere] emote registration failed', error);
+      publishContext(null);
       scheduleSync(5000);
       return;
     }
     if (current !== generation) return;
+
+    if (sevenTvPromise && !sevenTvId && !registration.binding) {
+      void sevenTvPromise.then((id) => {
+        if (id && current === generation) scheduleSync(0);
+      });
+    }
 
     context = { pluginKey: match.pluginKey, channelKey, sevenTvId, url: location.href };
     engine = new ChatEngine({
@@ -112,6 +180,7 @@ function start(): void {
 
     picker = new EmotePicker(match.descriptor, registration.emotes, match.settings);
     picker.start();
+    publishContext(context);
 
     if (registration.errors.length) {
       console.warn('[emote-anywhere] some emote sources failed', registration.errors);
@@ -119,7 +188,15 @@ function start(): void {
   };
 
   browser.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes['state']) scheduleSync(150);
+    const change = changes['state'];
+    if (area === 'local' && change && shouldSyncStateChange(change, location.href, context)) {
+      scheduleSync(150);
+    }
+  });
+
+  window.addEventListener('pagehide', () => publishContext(null));
+  window.addEventListener('pageshow', () => {
+    if (context) publishContext(context);
   });
 
   browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {

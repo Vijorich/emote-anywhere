@@ -3,6 +3,12 @@
 This folder is the default plugin registry. The extension fetches `index.json` and
 shows every plugin in it. Nothing here is bundled into the extension.
 
+The public copy is deployed by GitHub Actions whenever this folder changes:
+
+```
+https://vijorich.github.io/emote-anywhere/index.json
+```
+
 ## Add a plugin
 
 1. Add one object to the `plugins` array in `index.json`.
@@ -21,6 +27,8 @@ shows every plugin in it. Nothing here is bundled into the extension.
   between chats.
 - No remote code, no `javascript:` URLs, no tracking image hosts.
 - One plugin per site unless the site has genuinely different chat surfaces.
+- Registry changes are live after the `Registry` workflow finishes. Bump a plugin
+  `version` so clients refresh it.
 
 ## Local server
 

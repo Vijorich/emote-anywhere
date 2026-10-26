@@ -12,8 +12,8 @@ export function findPluginForUrl(state: AppState, url: string): InstalledPlugin 
     (plugin) => plugin.enabled && urlMatchesAny(url, plugin.descriptor.matches),
   );
   candidates.sort((left, right) => {
-    const leftScore = matchSpecificity(left.descriptor.matches, left.descriptor.priority);
-    const rightScore = matchSpecificity(right.descriptor.matches, right.descriptor.priority);
+    const leftScore = matchSpecificity(left.descriptor.matches, left.descriptor.priority, url);
+    const rightScore = matchSpecificity(right.descriptor.matches, right.descriptor.priority, url);
     return rightScore - leftScore;
   });
   return candidates[0] ?? null;
@@ -54,6 +54,14 @@ async function doSync(): Promise<void> {
 
   const registered = await browser.scripting.getRegisteredContentScripts().catch(() => []);
   const existing = registered.filter((script) => script.id === REGISTRATION_ID);
+  const existingMatches = new Set(existing[0]?.matches ?? []);
+  if (
+    existing.length <= 1 &&
+    existingMatches.size === matches.size &&
+    Array.from(matches).every((pattern) => existingMatches.has(pattern))
+  ) {
+    return;
+  }
 
   if (existing.length) {
     await browser.scripting
@@ -102,4 +110,20 @@ export async function injectIntoOpenTabs(matches: string[]): Promise<void> {
       // Tabs with restricted pages are expected to fail.
     }
   }
+}
+
+/** Ask every open tab to re-check its plugin after a permission changes. */
+export async function resyncOpenTabs(): Promise<void> {
+  let tabs: Array<{ id?: number }> = [];
+  try {
+    tabs = await browser.tabs.query({});
+  } catch {
+    return;
+  }
+  await Promise.all(
+    tabs.map(async (tab) => {
+      if (tab.id === undefined) return;
+      await browser.tabs.sendMessage(tab.id, { type: 'ea/resync' }).catch(() => undefined);
+    }),
+  );
 }

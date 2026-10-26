@@ -53,6 +53,26 @@ describe('VK plugin descriptor', () => {
     engine.stop();
   });
 
+  it('skips deleted and system rows by inner modifier class', () => {
+    document.body.innerHTML = `
+      <div id="reforged-root">
+        <div class="ConvoHistory__messageWrapper">
+          <div class="ConvoMessage ConvoMessage--deleted">
+            <div class="SomeTextBubble">hello peepoSad</div>
+          </div>
+        </div>
+      </div>
+    `;
+    const engine = new ChatEngine({
+      descriptor: vk,
+      emotes: [emote],
+      settings: { globalMode: false, emoteScale: 1 },
+    });
+    engine.start();
+    expect(document.querySelectorAll('.ea-e')).toHaveLength(0);
+    engine.stop();
+  });
+
   it('derives the channel key from the convo URL', () => {
     const key = resolveChannel(
       vk.chat.channel,

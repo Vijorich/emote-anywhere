@@ -1,5 +1,11 @@
 import { browser } from 'wxt/browser';
 import { bindingKey, safeChannelKey } from '../core/channel';
+import {
+  MAX_CUSTOM_SETS,
+  MAX_EMOTE_SCALE,
+  MAX_TOTAL_CUSTOM_EMOTES,
+  MIN_EMOTE_SCALE,
+} from '../core/config';
 import { clearEmoteCache } from '../core/emotes/cache';
 import { lookupSevenTvSet, resolveEmotes } from '../core/emotes/resolve';
 import { getState, mutateState, updateSettings } from '../core/state';
@@ -10,13 +16,29 @@ import type {
   CustomSet,
   PluginMatch,
   RpcRequest,
+  RpcSender,
 } from '../core/types';
 import { parseCustomSet, parseSevenTvSetId } from '../core/validate';
+import { forgetFrameContext, listFrameContexts, rememberFrameContext } from './contexts';
 import { findPluginForUrl, injectIntoOpenTabs, syncContentScript, toPluginMatch } from './plugins';
 import { addRegistry, refreshOneRegistry, refreshRegistries, removeRegistry } from './registry';
 import { fetchImageAsDataUrl } from './images';
 
-export async function handleRpc(request: RpcRequest, _sender: unknown): Promise<unknown> {
+const MAX_SETS = 50;
+
+async function prepareSets(values: string[], allowEmpty = false): Promise<string[]> {
+  if (!Array.isArray(values)) throw new Error('Expected a list of 7TV sets');
+  if (values.length > MAX_SETS) throw new Error(`Add at most ${MAX_SETS} sets`);
+  const sets = Array.from(new Set(values.map((value) => parseSevenTvSetId(value))));
+  if (!sets.length && !allowEmpty) throw new Error('Add at least one 7TV set');
+  await Promise.all(sets.map((id) => lookupSevenTvSet(id)));
+  return sets;
+}
+
+export async function handleRpc(
+  request: RpcRequest,
+  sender: RpcSender | null = null,
+): Promise<unknown> {
   switch (request.type) {
     case 'state/get':
       return getState();
@@ -77,6 +99,13 @@ export async function handleRpc(request: RpcRequest, _sender: unknown): Promise<
       const state = await getState();
       const plugin = findPluginForUrl(state, request.url);
       if (!plugin) return null;
+      let granted = false;
+      try {
+        granted = await browser.permissions.contains({ origins: plugin.descriptor.matches });
+      } catch {
+        granted = false;
+      }
+      if (!granted) return null;
       return toPluginMatch(state, plugin) satisfies PluginMatch;
     }
 
@@ -89,6 +118,7 @@ export async function handleRpc(request: RpcRequest, _sender: unknown): Promise<
       const binding = state.bindings[key] ?? null;
       const resolved = await resolveEmotes({
         binding,
+        globalBinding: state.globalBinding,
         settings: state.settings,
         customSets: state.customSets,
         sevenTv: plugin.descriptor.chat.sevenTv,
@@ -107,11 +137,7 @@ export async function handleRpc(request: RpcRequest, _sender: unknown): Promise<
       const state = await getState();
       if (!state.plugins[request.pluginKey]) throw new Error('Plugin not found');
       const channelKey = safeChannelKey(request.channelKey);
-      const sets = Array.from(
-        new Set(request.sets.map((value) => parseSevenTvSetId(value))),
-      );
-      if (!sets.length) throw new Error('Add at least one 7TV set');
-      await Promise.all(sets.map((id) => lookupSevenTvSet(id)));
+      const sets = await prepareSets(request.sets);
       const key = bindingKey(request.pluginKey, channelKey);
       const binding: Binding = {
         key,
@@ -132,6 +158,14 @@ export async function handleRpc(request: RpcRequest, _sender: unknown): Promise<
       });
       return true;
 
+    case 'globalBinding/set': {
+      const sets = await prepareSets(request.sets, true);
+      await mutateState((next) => {
+        next.globalBinding = { sets };
+      });
+      return { sets };
+    }
+
     case 'set/add': {
       const parsed = parseCustomSet({ name: request.name, emotes: request.emotes });
       const set: CustomSet = {
@@ -141,6 +175,16 @@ export async function handleRpc(request: RpcRequest, _sender: unknown): Promise<
         emotes: parsed.emotes,
       };
       await mutateState((next) => {
+        if (next.customSets.length >= MAX_CUSTOM_SETS) {
+          throw new Error(`Add at most ${MAX_CUSTOM_SETS} custom sets`);
+        }
+        const totalEmotes = next.customSets.reduce(
+          (total, existing) => total + existing.emotes.length,
+          0,
+        );
+        if (totalEmotes + parsed.emotes.length > MAX_TOTAL_CUSTOM_EMOTES) {
+          throw new Error(`Custom sets allow at most ${MAX_TOTAL_CUSTOM_EMOTES} emotes in total`);
+        }
         next.customSets.push(set);
       });
       return set;
@@ -162,7 +206,7 @@ export async function handleRpc(request: RpcRequest, _sender: unknown): Promise<
     case 'settings/update': {
       const patch: Partial<AppSettings> = { ...request.patch };
       if (patch.emoteScale !== undefined) {
-        patch.emoteScale = Math.min(2, Math.max(0.5, patch.emoteScale));
+        patch.emoteScale = Math.min(MAX_EMOTE_SCALE, Math.max(MIN_EMOTE_SCALE, patch.emoteScale));
       }
       const state = await updateSettings(patch);
       return state.settings;
@@ -170,6 +214,31 @@ export async function handleRpc(request: RpcRequest, _sender: unknown): Promise<
 
     case 'sevenTv/lookupSet':
       return lookupSevenTvSet(request.input);
+
+    case 'frame/context': {
+      const tabId = sender?.tab?.id;
+      if (tabId === undefined) return false;
+      const frameId = sender?.frameId ?? 0;
+      if (!request.context) {
+        await forgetFrameContext(tabId, frameId);
+        return true;
+      }
+      await rememberFrameContext(tabId, frameId, {
+        pluginKey: request.context.pluginKey.slice(0, 200),
+        channelKey: safeChannelKey(request.context.channelKey),
+        ...(request.context.sevenTvId
+          ? { sevenTvId: request.context.sevenTvId.slice(0, 100) }
+          : {}),
+        url: request.context.url.slice(0, 2048),
+      });
+      return true;
+    }
+
+    case 'frame/contexts':
+      if (!Number.isInteger(request.tabId) || request.tabId < 0) {
+        throw new Error('Invalid tab id');
+      }
+      return listFrameContexts(request.tabId);
 
     case 'image/fetch':
       return fetchImageAsDataUrl(request.url);

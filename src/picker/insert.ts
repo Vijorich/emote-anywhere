@@ -1,4 +1,8 @@
-export function insertIntoComposer(composer: HTMLElement, text: string): boolean {
+export function insertIntoComposer(
+  composer: HTMLElement,
+  text: string,
+  savedRange?: Range | null,
+): boolean {
   composer.focus();
 
   if (
@@ -18,10 +22,22 @@ export function insertIntoComposer(composer: HTMLElement, text: string): boolean
 
   const selection = window.getSelection();
   if (!selection) return false;
+  let restoredRange = false;
   if (
-    selection.rangeCount === 0 ||
-    !selection.anchorNode ||
-    !composer.contains(selection.anchorNode)
+    savedRange &&
+    composer.contains(savedRange.startContainer) &&
+    composer.contains(savedRange.endContainer)
+  ) {
+    selection.removeAllRanges();
+    selection.addRange(savedRange);
+    restoredRange = true;
+  }
+  if (
+    (savedRange !== undefined && !restoredRange) ||
+    (savedRange === undefined &&
+      (selection.rangeCount === 0 ||
+        !selection.anchorNode ||
+        !composer.contains(selection.anchorNode)))
   ) {
     const range = document.createRange();
     range.selectNodeContents(composer);

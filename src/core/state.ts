@@ -1,6 +1,12 @@
 import { browser } from 'wxt/browser';
-import { DEFAULT_REGISTRY_ID, DEFAULT_REGISTRY_NAME, DEFAULT_REGISTRY_URL, STATE_KEY } from './config';
-import { DEFAULT_SETTINGS } from './defaults';
+import {
+  DEFAULT_REGISTRY_ID,
+  DEFAULT_REGISTRY_NAME,
+  DEFAULT_REGISTRY_URL,
+  MAX_STATE_BYTES,
+  STATE_KEY,
+} from './config';
+import { DEFAULT_GLOBAL_SET_IDS, DEFAULT_SETTINGS } from './defaults';
 import { normalizeState } from './validate';
 import type { AppSettings, AppState } from './types';
 
@@ -21,6 +27,7 @@ export function createDefaultState(): AppState {
     ],
     plugins: {},
     bindings: {},
+    globalBinding: { sets: [...DEFAULT_GLOBAL_SET_IDS] },
     customSets: [],
   };
 }
@@ -32,14 +39,21 @@ export async function getState(): Promise<AppState> {
   let stored: unknown;
   try {
     stored = (await browser.storage.local.get(STATE_KEY))[STATE_KEY];
-  } catch {
-    return defaults;
+  } catch (error) {
+    // Never substitute defaults for a failed read: the next mutation would
+    // overwrite the real state with defaults.
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not read extension state: ${message}`);
   }
-  if (!stored) {
-    await browser.storage.local.set({ [STATE_KEY]: defaults });
-    return defaults;
-  }
+  if (!stored) return defaults;
   return normalizeState(stored, defaults);
+}
+
+function assertStateSize(state: AppState): void {
+  const bytes = new TextEncoder().encode(JSON.stringify(state)).byteLength;
+  if (bytes > MAX_STATE_BYTES) {
+    throw new Error('Extension state is too large. Remove some custom sets or bindings.');
+  }
 }
 
 export function mutateState<T>(
@@ -48,6 +62,7 @@ export function mutateState<T>(
   const run = writeQueue.then(async () => {
     const state = await getState();
     const result = await change(state);
+    assertStateSize(state);
     await browser.storage.local.set({ [STATE_KEY]: state });
     return { state, result };
   });

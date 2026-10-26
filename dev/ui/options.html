@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Options preview · Emote Anywhere</title>
+    <script>
+      const theme = new URLSearchParams(location.search).get('theme');
+      if (theme === 'light' || theme === 'dark') {
+        document.documentElement.dataset.theme = theme;
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="./preview-options.ts"></script>
+  </body>
+</html>

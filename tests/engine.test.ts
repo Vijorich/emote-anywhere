@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings, Emote, PluginDescriptor } from '../src/core/types';
 import { ChatEngine } from '../src/engine/engine';
 import { insertIntoComposer } from '../src/picker/insert';
@@ -55,6 +55,10 @@ beforeEach(() => {
   document.body.innerHTML = '';
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('ChatEngine', () => {
   it('replaces only inside chat messages', () => {
     document.body.innerHTML = `
@@ -85,6 +89,26 @@ describe('ChatEngine', () => {
     const instance = engine(descriptor({ skip: ['.deleted'] }));
     expect(document.querySelectorAll('.ea-e')).toHaveLength(0);
     instance.stop();
+  });
+
+  it('skips messages whose descendant matches a skip selector', () => {
+    document.body.innerHTML = `
+      <div class="msg"><div class="deleted"><span class="body">peepoSad</span></div></div>
+    `;
+    const instance = engine(descriptor({ skip: ['.deleted'] }));
+    expect(document.querySelectorAll('.ea-e')).toHaveLength(0);
+    instance.stop();
+  });
+
+  it('restores emotes when stopped', () => {
+    document.body.innerHTML = `<div class="msg"><span class="body">hi peepoSad</span></div>`;
+    const instance = engine();
+    expect(document.querySelectorAll('.ea-e')).toHaveLength(1);
+
+    instance.stop();
+
+    expect(document.querySelectorAll('.ea-e')).toHaveLength(0);
+    expect(document.querySelector('.body')?.textContent).toBe('hi peepoSad');
   });
 
   it('handles appended messages without duplicating emotes', async () => {
@@ -187,6 +211,164 @@ describe('ChatEngine', () => {
     expect(document.querySelector('#outside .ea-e')).not.toBeNull();
     expect(document.querySelector('code .ea-e')).toBeNull();
     expect(document.querySelector('textarea')?.value).toBe('catJAM');
+    instance.stop();
+  });
+
+  it('uses the first message selector with results, including the root itself', () => {
+    document.body.innerHTML = `
+      <div id="chat" class="modern"><span class="body">peepoSad</span></div>
+      <div class="legacy"><span class="body">catJAM</span></div>
+    `;
+    const instance = engine(
+      descriptor({ roots: ['#chat'], messages: ['.modern', '.legacy'] }),
+    );
+    expect(document.querySelectorAll('#chat .ea-e')).toHaveLength(1);
+    expect(document.querySelector('.legacy .ea-e')).toBeNull();
+    expect(document.querySelector('.legacy .body')?.textContent).toBe('catJAM');
+    instance.stop();
+  });
+
+  it('falls back to later message selectors when earlier ones have no results', () => {
+    document.body.innerHTML = `<div class="legacy"><span class="body">peepoSad</span></div>`;
+    const instance = engine(descriptor({ messages: ['.missing', '.legacy'] }));
+    expect(document.querySelectorAll('.legacy .ea-e')).toHaveLength(1);
+    instance.stop();
+  });
+
+  it('filters nested message candidates without pairwise ancestor checks', () => {
+    let parent = document.body;
+    for (let index = 0; index < 40; index++) {
+      const message = document.createElement('div');
+      message.className = 'msg';
+      message.append('peepoSad');
+      parent.append(message);
+      parent = message;
+    }
+    const contains = vi.spyOn(Element.prototype, 'contains');
+    const instance = engine(descriptor({ text: [] }));
+    expect(document.querySelectorAll('.ea-e')).toHaveLength(40);
+    expect(contains).not.toHaveBeenCalled();
+    instance.stop();
+  });
+
+  it('uses the discovery message for mutations with conflicting nested selectors', async () => {
+    document.body.innerHTML = `
+      <div class="wrapper">
+        <div class="message" id="outer-message">
+          <span class="body">peepoSad</span>
+          <div class="message">
+            <div class="wrapper"><span class="body" id="edited">ready</span></div>
+          </div>
+        </div>
+      </div>
+    `;
+    const instance = engine(descriptor({ messages: ['.message', '.wrapper'] }));
+    const original = document.querySelector('#outer-message > .body .ea-e img');
+    expect(original).not.toBeNull();
+
+    const edited = document.querySelector('#edited');
+    if (edited) edited.textContent = 'catJAM';
+    await wait();
+
+    const replacement = document.querySelector('#outer-message > .body .ea-e img');
+    expect(replacement).not.toBe(original);
+    expect(original?.isConnected).toBe(false);
+    expect(document.querySelector('#edited .ea-e')?.getAttribute('data-ea-code')).toBe('catJAM');
+    instance.stop();
+  });
+
+  it('does not recreate emote images for excluded-only edits', async () => {
+    document.body.innerHTML = `
+      <div class="msg">
+        <div class="author">author</div>
+        <span class="body">hi peepoSad</span>
+        <span class="timestamp">12:00</span>
+        <div class="reactions">catJAM</div>
+        <div class="attachments">attachment peepoSad</div>
+      </div>
+    `;
+    const instance = engine(
+      descriptor({
+        text: [],
+        exclude: ['.author', '.timestamp', '.reactions', '.attachments'],
+      }),
+    );
+    const image = document.querySelector('.ea-e img');
+    expect(image).not.toBeNull();
+    for (const selector of ['.author', '.timestamp', '.reactions', '.attachments']) {
+      const element = document.querySelector(selector);
+      if (element) element.textContent = `edited ${selector}`;
+    }
+    await wait();
+    expect(document.querySelectorAll('.ea-e')).toHaveLength(1);
+    expect(document.querySelector('.ea-e img')).toBe(image);
+    expect(image?.isConnected).toBe(true);
+    instance.stop();
+  });
+
+  it('does not recreate emote images for edits outside configured text roots', async () => {
+    document.body.innerHTML = `
+      <div class="msg"><span class="body">peepoSad</span><span class="metadata">old</span></div>
+    `;
+    const instance = engine();
+    const image = document.querySelector('.ea-e img');
+    const metadata = document.querySelector('.metadata');
+    if (metadata) metadata.textContent = 'new';
+    await wait();
+    expect(document.querySelector('.ea-e img')).toBe(image);
+    instance.stop();
+  });
+
+  it('recreates emote images for real body edits', async () => {
+    document.body.innerHTML = `<div class="msg"><span class="body">peepoSad</span></div>`;
+    const instance = engine();
+    const original = document.querySelector('.ea-e img');
+    const body = document.querySelector('.body');
+    if (body) body.textContent = 'catJAM only';
+    await wait();
+    const replacement = document.querySelector('.ea-e img');
+    expect(replacement).not.toBeNull();
+    expect(replacement).not.toBe(original);
+    expect(original?.isConnected).toBe(false);
+    expect(replacement?.getAttribute('alt')).toBe('catJAM');
+    instance.stop();
+  });
+
+  it('resolves configured chat roots once per mutation batch', async () => {
+    document.body.innerHTML = `
+      <div id="chat">
+        <div class="msg"><span class="body">one</span></div>
+        <div class="msg"><span class="body">two</span></div>
+      </div>
+    `;
+    const instance = engine(descriptor({ roots: ['#chat'] }));
+    const query = vi.spyOn(document, 'querySelectorAll');
+    const bodies = document.querySelectorAll('.body');
+    bodies[0]?.append(' edited');
+    bodies[1]?.append(' edited');
+    await wait();
+    expect(query.mock.calls.filter(([selector]) => selector === '#chat')).toHaveLength(1);
+    instance.stop();
+  });
+
+  it('ignores outside-root mutations without scheduling an empty flush', async () => {
+    document.body.innerHTML = `<div id="chat"></div><div id="outside"></div>`;
+    const instance = engine(descriptor({ roots: ['#chat'] }));
+    const timeout = vi.spyOn(window, 'setTimeout');
+    const outside = document.querySelector('#outside');
+    if (outside) {
+      outside.innerHTML = `<div class="msg"><span class="body">peepoSad</span></div>`;
+    }
+    await wait();
+    expect(document.querySelector('#outside .ea-e')).toBeNull();
+    expect(timeout.mock.calls.some(([, delay]) => delay === 40)).toBe(false);
+    instance.stop();
+  });
+
+  it('falls back to body when configured roots are absent', () => {
+    document.body.innerHTML = `<div class="msg"><span class="body">peepoSad</span></div>`;
+    const instance = engine(descriptor({ roots: ['#missing'] }));
+    expect(document.querySelectorAll('.ea-e')).toHaveLength(1);
     instance.stop();
   });
 });

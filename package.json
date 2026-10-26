@@ -2,8 +2,30 @@
   "name": "emote-anywhere",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
-  "packageManager": "pnpm@11.9.0",
+  "packageManager": "pnpm@12.15.0",
+  "description": "7TV, BTTV and FFZ emotes in any chat, with declarative site plugins.",
+  "author": "Viktor Antonov",
+  "homepage": "https://github.com/Vijorich/emote-anywhere",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vijorich/emote-anywhere.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Vijorich/emote-anywhere/issues"
+  },
+  "keywords": [
+    "browser-extension",
+    "emotes",
+    "7tv",
+    "bttv",
+    "frankerfacez",
+    "webextension"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "wxt",
     "dev:firefox": "wxt -b firefox",
@@ -15,12 +37,15 @@
     "test": "vitest run",
     "registry": "node scripts/serve-registry.mjs",
     "dev:page": "node scripts/serve-dev.mjs",
+    "release:check": "node scripts/check-release.mjs",
+    "preview": "vite --config dev/ui/vite.config.ts",
     "postinstall": "wxt prepare"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
     "jsdom": "^30.1.3",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
     "vitest": "^5.0.5",
     "wxt": "^0.21.5"
   }

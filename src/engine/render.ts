@@ -179,7 +179,10 @@ export function restoreEmotes(root: Element): void {
 }
 
 /** Text content with rendered emotes converted back to their source codes. */
-export function readSource(root: Element): string {
+export function readSource(
+  root: Element,
+  isExcluded?: (element: Element) => boolean,
+): string {
   const parts: string[] = [];
   const visit = (node: Node): void => {
     if (node.nodeType === Node.TEXT_NODE) {
@@ -192,6 +195,7 @@ export function readSource(root: Element): string {
       parts.push(element.getAttribute('data-ea-text') ?? '');
       return;
     }
+    if (element.classList.contains(PICKER_HOST_CLASS) || isExcluded?.(element)) return;
     for (const child of Array.from(element.childNodes)) visit(child);
   };
   visit(root);

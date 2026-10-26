@@ -47,7 +47,7 @@ the chat's identity. It cannot run code.
 | `description` | no | Short text in settings. |
 | `authors` | no | Array of names. |
 | `homepage` | no | `http(s)` URL. |
-| `priority` | no | Integer. Higher wins when several plugins match the same URL. Specific patterns also add score. |
+| `priority` | no | Integer. Higher priority wins first; the most specific matching pattern breaks ties. |
 | `proxyImages` | no | Fetch emote images through the background worker. Required on sites whose `img-src` CSP blocks emote CDNs (VK). |
 | `matches` | yes | 1-20 Chrome/Firefox match patterns. |
 | `chat` | yes | Where messages are. |
@@ -61,8 +61,10 @@ Standard WebExtension match patterns, restricted to `http` and `https`:
 - `https://*.vk.com/*` — the domain and all subdomains.
 - `*://*/*` — any http/https page. Do not use this unless you truly mean it.
 
-The path must start with `/`. Ports are not part of match patterns; a pattern for a
-host covers every port. Query strings and fragments are ignored.
+The path must start with `/`. URL ports are ignored, and patterns with explicit ports
+are rejected. Path matching includes the query string and is case-sensitive; fragments
+are ignored. Thus `/chat` does not match `/chat?x=1`; add `/chat?*` when an exact path
+should also match with a query string.
 
 ## `chat`
 
@@ -72,13 +74,14 @@ host covers every port. Query strings and fragments are ignored.
 | `messages` | yes | Message element selectors. Tried in order; first selector with results wins. |
 | `text` | no | Text containers inside a message. Defaults to the whole message. |
 | `exclude` | no | Elements whose text is never replaced. |
-| `skip` | no | Messages ignored entirely. |
+| `skip` | no | Messages ignored entirely when the message or any descendant matches. |
 | `messageIdAttr` | no | Reserved for debugging; not used by the engine today. |
 | `channel` | yes | How to derive a stable key for this chat. |
 | `sevenTv` | no | How to find the channel's 7TV account. |
 
 The engine always skips `script`, `style`, `noscript`, `textarea`, `input`, `select`,
-`option`, `code`, `pre`, `[contenteditable]`, and the extension's own UI.
+`option`, `code`, `pre`, `[contenteditable]:not([contenteditable="false"])`, and the
+extension's own UI.
 
 `messages` and `text` are fallback chains: list the current selector first, then one
 or two older variants. This keeps a plugin alive across small site changes.
@@ -128,9 +131,11 @@ binding, the extension resolves the 7TV channel set:
 Supported platforms: `twitch`, `youtube`, `kick`. `id` accepts a rule or an array of
 rules, same as `channel`. **`id` is the platform's user id, not the login name**:
 7TV's v3 API resolves `twitch/<numeric id>`, `youtube/<channel id>`,
-`kick/<id>`. A Twitch plugin has to read the numeric id from the page (or a small
-lookup service) before using auto-channel. For VK there is no 7TV platform
-connection, so VK users bind a 7TV set manually in the popup.
+`kick/<id>`. Values are validated against the documented platform ID format before
+any lookup; invalid values produce a source error and are not sent to 7TV.
+A Twitch plugin has to read the numeric id from the page (or a small lookup service)
+before using auto-channel. For VK there is no 7TV platform connection, so VK users
+bind a 7TV set manually in the popup.
 
 ## `composer`
 
@@ -206,6 +211,8 @@ Checklist before publishing:
 - Selectors are passed to `querySelector`/`closest`. Invalid selectors are logged and
   ignored; they cannot execute anything.
 - `urlRegex` runs against the page URL only. Keep it simple and anchored.
+- Auto-channel lookups accept only values in documented platform ID formats. Other
+  page or URL values are rejected before any 7TV request.
 - Emote image URLs come from providers or a user's custom set; a plugin cannot add
   image URLs.
 

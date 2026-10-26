@@ -4,10 +4,13 @@
 extension: each chat is described by a declarative JSON plugin, so selectors can be
 fixed without shipping a new extension version.
 
+![Emote Anywhere settings overview](store/screenshots/01-overview.png)
+
 ## Status
 
-Early development. Chrome/Edge and Firefox MV3. The engine, plugin registry, option
-page, popup and emote picker are implemented; the VK adapter is the first plugin.
+Public beta (0.1.0). Chrome/Edge (123+) and Firefox MV3. The engine, plugin registry,
+settings page, popup and emote picker are implemented; the VK adapter is the first
+plugin. Release builds are attached to [GitHub releases](https://github.com/Vijorich/emote-anywhere/releases).
 
 ## How it works
 
@@ -16,12 +19,33 @@ Three independent layers:
 - **Engine** (`src/engine`) — finds messages, tokenizes text, renders `<img>` emotes,
   survives re-renders and virtualized lists, groups zero-width emotes.
 - **Plugin** (`registry/`) — data only: URL patterns, CSS selectors, how to derive a
-  channel key, where the composer is. No JavaScript, no network, no extension APIs.
+  channel key, where the composer is. No JavaScript or extension APIs. Provider
+  requests are mediated and validated by the extension.
 - **Providers** (`src/core/emotes`) — 7TV, BTTV and FFZ clients plus custom
   `code → URL` sets.
 
 Emote size is a setting (slider in settings and popup). The default is **1.2×**
-(1.8em at the 1.5em base); the range is 0.5–2.0×.
+(1.8em at the 1.5em base); the range is 0.5–3.0×.
+
+### Global chat bindings
+
+A global binding is a list of 7TV sets that loads in **every** chat. The default set
+is [`emote everywhere default set`](https://7tv.app/emote-sets/01M5VFKKAQEH8WEF0N0PNRK2YP)
+(`01M5VFKKAQEH8WEF0N0PNRK2YP`). It is part of the default state and is added to
+existing installs on upgrade. Remove it in **Bindings**, or restore it there.
+
+A per-chat binding still wins for the chat it was made for. The full priority is:
+
+1. per-chat binding sets;
+2. global binding sets;
+3. the site's own 7TV channel (when no per-chat binding exists);
+4. enabled custom sets;
+5. 7TV, BTTV and FFZ global providers.
+
+The first source that defines a code renders it.
+
+Manage global sets in **Bindings**, or add a per-chat set from the popup while the
+chat is open.
 
 The background worker owns all state and emote resolution. Content scripts ask it for
 the plugin matching the current URL and for the resolved emote set. There is no
@@ -36,7 +60,19 @@ pnpm dev:firefox
 pnpm test
 pnpm typecheck
 pnpm build
+pnpm preview      # standalone UI preview, no browser extension needed
+pnpm dev:page     # mock chat page on :8788
+pnpm release:check # public registry, release notes, icons, license, Firefox ID
 ```
+
+`release:check` verifies the public registry, the GitHub project URL, the permanent
+Firefox ID, release notes for the current version, icons and the privacy policy. Run
+it before a release; see [BACKLOG.md](BACKLOG.md) for the remaining manual steps.
+
+`pnpm preview` serves the settings and popup UI with a mock extension API at
+`http://localhost:5199/options.html` and `/popup.html`; the picker preview is
+`http://localhost:5199/picker.html`. It is a development tool; nothing in
+`dev/ui` is shipped.
 
 The local default registry is served by:
 
@@ -44,9 +80,29 @@ The local default registry is served by:
 pnpm registry     # http://localhost:8787/index.json
 ```
 
-`.env` points the development build at that URL. `.env.production` points at
-`https://raw.githubusercontent.com/Vijorich/emote-anywhere/main/registry/index.json`;
-change it to your fork before publishing.
+Copy `.env.example` to `.env` before local development. `.env` points the
+development build at the local registry. `.env.production` points at the public
+registry, deployed from `registry/` by GitHub Actions to
+`https://vijorich.github.io/emote-anywhere/index.json`. The default registry in
+the repo can also be loaded as `http://localhost:8787/dev.json` for the mock chat.
+
+`pnpm dev:page` serves `dev/mock-chat.html` at `http://localhost:8788` with a
+VK-like image CSP.
+
+## Releases
+
+1. Bump `version` in `package.json`.
+2. Add the same version to `CHANGELOG.md`.
+3. Push to `main`.
+
+`.github/workflows/release.yml` detects the new version, waits for the public
+registry, runs `release:check`, typecheck, tests and both builds, then creates tag
+`v<version>` and attaches the Chrome, Firefox and Firefox sources zips to the GitHub
+release. If the tag already exists the release is skipped. Store submission steps
+are in [`docs/STORE.md`](docs/STORE.md).
+
+The registry itself is deployed by `.github/workflows/pages.yml` whenever
+`registry/` changes.
 
 ### Try it in Chrome
 
@@ -74,12 +130,15 @@ change it to your fork before publishing.
 - `host_permissions` for `cdn.7tv.app`, `cdn.betterttv.net`,
   `cdn.frankerfacez.com` — background image proxy. BTTV's CDN has no CORS headers.
 - `optional_host_permissions: *://*/*` — requested per plugin when you enable it.
-  The extension has no access to chat sites until you turn a plugin on.
+  The extension has no access to chat sites until you turn a plugin on. Disabling a
+  plugin stops its content script but does not revoke access already granted; revoke
+  it in the browser's extension site-access settings if desired.
 
 ## Privacy
 
 Emote lookups go directly to 7TV/BTTV/FFZ. The extension sends no telemetry and has
-no backend. Chat text never leaves the page.
+no backend. Chat text never leaves the page. The full policy is in
+[`PRIVACY.md`](PRIVACY.md).
 
 ## Layout
 
@@ -90,20 +149,35 @@ src/
   picker/        shadow-DOM emote picker and text insertion
   background/    state owner, registry sync, content-script registration
   entrypoints/   background, content script, options, popup
-registry/        default JSON registry and plugin authoring docs
-tests/           engine, tokenizer, schema and URL matching tests
+  entrypoints/options/views/  one module per settings screen
+  ui/            shared theme, components, set lookups
+  assets/fonts/  bundled IBM Plex Sans and Plex Mono (SIL OFL)
+dev/ui/          standalone settings, popup and picker preview (not shipped)
+public/          extension icons
+registry/        default JSON registry, deployed to GitHub Pages
+scripts/         local registry/dev servers and release check
+store/           store screenshots (not shipped)
+tests/           engine, core, background, provider, picker and UI tests
+.github/         CI, registry deployment and release workflows
 ```
 
 ## Known limits
 
 - Tokens are matched inside one text node. A code split across two elements is not
   matched.
+- Shadow-DOM chat surfaces are not traversed.
+- Very large custom sets or bindings can hit the extension's state-size guard.
 - Zero-width emotes attach to the previous emote only when whitespace separates them.
 - A site with a strict `img-src` CSP can block emote images. VK is handled with
   `proxyImages` (background fetch → `data:` URL); other strict sites need the same
   flag in their plugin.
 - Firefox MV3 host permission prompts are controlled by the browser; the options
   page requests each plugin's origins explicitly.
+
+## License
+
+MIT. The bundled IBM Plex fonts are under the SIL Open Font License; see
+`src/assets/fonts/OFL.txt`.
 
 ## VK specifics
 

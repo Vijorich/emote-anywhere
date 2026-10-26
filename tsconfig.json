@@ -6,5 +6,5 @@
     "noImplicitOverride": true,
     "types": ["node"]
   },
-  "include": ["src", "tests", "scripts", "wxt.config.ts", "vitest.config.ts"]
+  "include": ["src", "tests", "scripts", "dev/ui", "wxt.config.ts", "vitest.config.ts"]
 }

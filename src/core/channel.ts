@@ -55,10 +55,6 @@ export function resolveChannel(
   return undefined;
 }
 
-export function pluginKey(registryId: string, pluginId: string): string {
-  return `${registryId}:${pluginId}`;
-}
-
 export function bindingKey(pluginKeyValue: string, channelKey: string): string {
   return `${pluginKeyValue}|${channelKey}`;
 }

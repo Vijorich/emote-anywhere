@@ -1,16 +1,11 @@
-import { GLOBAL_TTL_MS, SET_TTL_MS } from '../config';
+import { GLOBAL_TTL_MS } from '../config';
 import type { Emote } from '../types';
 import { cached } from './cache';
+import { fetchProviderJson } from './http';
 
 interface BttvEmote {
   id?: string;
   code?: string;
-  imageType?: string;
-}
-
-interface BttvChannel {
-  channelEmotes?: BttvEmote[];
-  sharedEmotes?: BttvEmote[];
 }
 
 function normalize(list: BttvEmote[] | undefined): Emote[] {
@@ -30,26 +25,10 @@ function normalize(list: BttvEmote[] | undefined): Emote[] {
   return emotes;
 }
 
-async function getJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
-    cache: 'no-store',
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return (await response.json()) as T;
-}
-
 export async function fetchBttvGlobal(): Promise<Emote[]> {
-  return cached('bttv:global', GLOBAL_TTL_MS, async () => {
-    return normalize(await getJson<BttvEmote[]>('https://api.betterttv.net/3/cached/emotes/global'));
-  });
-}
-
-export async function fetchBttvChannel(twitchId: string): Promise<Emote[]> {
-  return cached(`bttv:channel:${twitchId}`, SET_TTL_MS, async () => {
-    const channel = await getJson<BttvChannel>(
-      `https://api.betterttv.net/3/cached/users/twitch/${encodeURIComponent(twitchId)}`,
-    );
-    return normalize([...(channel.channelEmotes ?? []), ...(channel.sharedEmotes ?? [])]);
-  });
+  return cached('bttv:global', GLOBAL_TTL_MS, async () =>
+    normalize(
+      await fetchProviderJson<BttvEmote[]>('https://api.betterttv.net/3/cached/emotes/global'),
+    ),
+  );
 }

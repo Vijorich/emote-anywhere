@@ -81,6 +81,11 @@ export interface Binding {
   sets: string[];
 }
 
+/** 7TV sets that load in every chat. A per-chat binding takes priority. */
+export interface GlobalBinding {
+  sets: string[];
+}
+
 export interface CustomEmote {
   code: string;
   url: string;
@@ -114,6 +119,7 @@ export interface AppState {
   registries: RegistryRef[];
   plugins: Record<string, InstalledPlugin>;
   bindings: Record<string, Binding>;
+  globalBinding: GlobalBinding;
   customSets: CustomSet[];
 }
 
@@ -149,6 +155,8 @@ export interface SevenTvSetInfo {
   id: string;
   name: string;
   emoteCount: number;
+  /** First few emotes, used for the size preview. */
+  preview: Array<{ code: string; url: string }>;
 }
 
 export type RpcRequest =
@@ -163,12 +171,15 @@ export type RpcRequest =
   | { type: 'chat/register'; pluginKey: string; channelKey: string; sevenTvId?: string }
   | { type: 'binding/set'; pluginKey: string; channelKey: string; label: string; sets: string[] }
   | { type: 'binding/remove'; key: string }
+  | { type: 'globalBinding/set'; sets: string[] }
   | { type: 'set/add'; name: string; emotes: CustomEmote[] }
   | { type: 'set/remove'; id: string }
   | { type: 'set/toggle'; id: string; enabled: boolean }
   | { type: 'settings/update'; patch: Partial<AppSettings> }
   | { type: 'sevenTv/lookupSet'; input: string }
   | { type: 'image/fetch'; url: string }
+  | { type: 'frame/context'; context: ContentContext | null }
+  | { type: 'frame/contexts'; tabId: number }
   | { type: 'cache/clear' };
 
 export interface RpcOk<T> {
@@ -188,4 +199,17 @@ export interface ContentContext {
   channelKey: string;
   sevenTvId?: string;
   url: string;
+}
+
+/** A content-script context registered by its frame. */
+export interface FrameContext extends ContentContext {
+  tabId: number;
+  frameId: number;
+  updatedAt: number;
+}
+
+export interface RpcSender {
+  tab?: { id?: number };
+  frameId?: number;
+  url?: string;
 }

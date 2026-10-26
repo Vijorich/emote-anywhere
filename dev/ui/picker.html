@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Picker preview · Emote Anywhere</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #121714;
+        color: #f0f5f1;
+        font: 14px/1.5 system-ui, sans-serif;
+      }
+      .chat {
+        display: grid;
+        gap: 8px;
+        max-width: 680px;
+        margin: 0 auto;
+        padding: 24px 16px 120px;
+      }
+      .message {
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: #1a211c;
+      }
+      .author {
+        color: #6cc79e;
+        font-weight: 600;
+      }
+      .composer {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        padding: 12px 16px;
+        background: #0d100e;
+      }
+      #composer {
+        max-width: 680px;
+        min-height: 26px;
+        margin: 0 auto;
+        padding: 8px 10px;
+        border: 1px solid #2d3931;
+        border-radius: 6px;
+        background: #141916;
+        outline: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 style="position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%);">Preview chat</h1>
+    <main class="chat">
+      <div class="message"><span class="author">mira</span> evening chat</div>
+      <div class="message"><span class="author">koda</span> that play was wild</div>
+      <div class="message"><span class="author">mira</span> true</div>
+    </main>
+    <div class="composer"><div id="composer" contenteditable="true"></div></div>
+    <script type="module" src="./preview-picker.ts"></script>
+  </body>
+</html>

@@ -2,6 +2,13 @@ import { GLOBAL_TTL_MS, SET_TTL_MS } from '../config';
 import type { Emote } from '../types';
 
 import { cached } from './cache';
+import { fetchProviderJson } from './http';
+
+const USER_ID_RE = {
+  twitch: /^\d{1,32}$/,
+  youtube: /^UC[A-Za-z0-9_-]{22}$/,
+  kick: /^\d{1,32}$/,
+};
 
 interface SevenTvFile {
   name?: string;
@@ -81,25 +88,18 @@ export function normalizeSevenTvSet(set: SevenTvSet | null | undefined): SevenTv
   return { name: set?.name ?? '7TV set', emotes };
 }
 
-async function getJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
-    cache: 'no-store',
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return (await response.json()) as T;
-}
-
 export async function fetchSevenTvSet(id: string): Promise<SevenTvSetData> {
   return cached(`7tv:set:${id}`, SET_TTL_MS, async () => {
-    const set = await getJson<SevenTvSet>(`https://7tv.io/v3/emote-sets/${encodeURIComponent(id)}`);
+    const set = await fetchProviderJson<SevenTvSet>(
+      `https://7tv.io/v3/emote-sets/${encodeURIComponent(id)}`,
+    );
     return normalizeSevenTvSet(set);
   });
 }
 
 export async function fetchSevenTvGlobal(): Promise<SevenTvSetData> {
   return cached('7tv:global', GLOBAL_TTL_MS, async () => {
-    const set = await getJson<SevenTvSet>('https://7tv.io/v3/emote-sets/global');
+    const set = await fetchProviderJson<SevenTvSet>('https://7tv.io/v3/emote-sets/global');
     return normalizeSevenTvSet(set);
   });
 }
@@ -108,8 +108,9 @@ export async function fetchSevenTvUser(
   platform: 'twitch' | 'youtube' | 'kick',
   id: string,
 ): Promise<SevenTvSetData> {
+  if (!USER_ID_RE[platform].test(id)) throw new Error(`Invalid ${platform} user id`);
   return cached(`7tv:user:${platform}:${id}`, SET_TTL_MS, async () => {
-    const user = await getJson<SevenTvUser>(
+    const user = await fetchProviderJson<SevenTvUser>(
       `https://7tv.io/v3/users/${platform}/${encodeURIComponent(id)}`,
     );
     return normalizeSevenTvSet(user.emote_set);

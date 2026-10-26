@@ -1,3 +1,8 @@
+import {
+  MAX_CUSTOM_SET_EMOTES,
+  MAX_EMOTE_SCALE,
+  MIN_EMOTE_SCALE,
+} from './config';
 import { isValidMatchPattern } from './url-match';
 import type {
   AppSettings,
@@ -8,6 +13,7 @@ import type {
   ComposerSpec,
   CustomEmote,
   CustomSet,
+  GlobalBinding,
   InstalledPlugin,
   PluginDescriptor,
   RegistryIndex,
@@ -20,6 +26,8 @@ const PLUGIN_ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const VERSION_RE = /^[0-9A-Za-z.+_-]{1,32}$/;
 const MAX_PLUGINS = 200;
 const MAX_SELECTORS = 50;
+const MAX_SETS = 50;
+const SET_ID_RE = /^[A-Za-z0-9]{6,64}$/;
 
 class SchemaError extends Error {
   constructor(path: string, message: string) {
@@ -221,6 +229,9 @@ export function parsePluginDescriptor(value: unknown, path = 'plugin'): PluginDe
 export function parseRegistryIndex(value: unknown): RegistryIndex {
   const raw = record(value, 'registry');
   const pluginsRaw = raw['plugins'];
+  if (Array.isArray(pluginsRaw) && raw['schemaVersion'] !== 1) {
+    throw new SchemaError('registry.schemaVersion', 'expected 1');
+  }
   if (!Array.isArray(pluginsRaw)) {
     if (raw['schemaVersion'] === 1 && typeof raw['id'] === 'string') {
       const single = parsePluginDescriptor(raw);
@@ -253,7 +264,9 @@ export function parseCustomSet(value: unknown): { name: string; emotes: CustomEm
   if (!Array.isArray(emotesRaw) || emotesRaw.length === 0) {
     throw new SchemaError('set.emotes', 'expected a non-empty array');
   }
-  if (emotesRaw.length > 5000) throw new SchemaError('set.emotes', 'allows at most 5000 emotes');
+  if (emotesRaw.length > MAX_CUSTOM_SET_EMOTES) {
+    throw new SchemaError('set.emotes', `allows at most ${MAX_CUSTOM_SET_EMOTES} emotes`);
+  }
   const seen = new Set<string>();
   const emotes: CustomEmote[] = emotesRaw.map((item, index) => {
     const emote = record(item, `set.emotes[${index}]`);
@@ -321,12 +334,14 @@ export function normalizeRegistry(value: unknown): RegistryRef | null {
     return null;
   }
   return {
-    id,
-    name,
+    id: id.slice(0, 100),
+    name: name.trim().slice(0, 80) || new URL(url).hostname,
     url,
     builtin: value['builtin'] === true,
     ...(typeof value['lastCheckedAt'] === 'number' ? { lastCheckedAt: value['lastCheckedAt'] } : {}),
-    ...(typeof value['lastError'] === 'string' ? { lastError: value['lastError'] } : {}),
+    ...(typeof value['lastError'] === 'string'
+      ? { lastError: value['lastError'].slice(0, 500) }
+      : {}),
     ...(typeof value['pluginCount'] === 'number' ? { pluginCount: value['pluginCount'] } : {}),
   };
 }
@@ -347,7 +362,9 @@ export function normalizeBinding(value: unknown): Binding | null {
   ) {
     return null;
   }
-  const cleanSets = sets.filter((item): item is string => typeof item === 'string' && item.length > 0);
+  const cleanSets = sets
+    .filter((item): item is string => typeof item === 'string' && SET_ID_RE.test(item))
+    .slice(0, MAX_SETS);
   return {
     key,
     pluginKey: pluginKeyValue,
@@ -357,27 +374,58 @@ export function normalizeBinding(value: unknown): Binding | null {
   };
 }
 
+export function normalizeGlobalBinding(
+  value: unknown,
+  fallback: GlobalBinding,
+): GlobalBinding {
+  if (!isRecord(value) || !Array.isArray(value['sets'])) {
+    return { sets: [...fallback.sets] };
+  }
+  const sets: string[] = [];
+  for (const item of value['sets']) {
+    if (typeof item !== 'string' || !SET_ID_RE.test(item) || sets.includes(item)) continue;
+    sets.push(item);
+    if (sets.length === MAX_SETS) break;
+  }
+  return { sets };
+}
+
 export function normalizeCustomSet(value: unknown): CustomSet | null {
   if (!isRecord(value)) return null;
   const id = value['id'];
   const name = value['name'];
   const emotes = value['emotes'];
   if (typeof id !== 'string' || typeof name !== 'string' || !Array.isArray(emotes)) return null;
+  const cleanName = name.trim().slice(0, 80);
+  if (!cleanName) return null;
+
+  const seen = new Set<string>();
   const cleanEmotes: CustomEmote[] = [];
   for (const item of emotes) {
     if (!isRecord(item)) continue;
-    const code = item['code'];
-    const url = item['url'];
-    if (typeof code !== 'string' || typeof url !== 'string') continue;
+    const rawCode = item['code'];
+    const rawUrl = item['url'];
+    if (typeof rawCode !== 'string' || typeof rawUrl !== 'string') continue;
+    const code = rawCode.trim();
+    const url = rawUrl.trim();
+    if (!code || code.length > 64 || !EMOTE_CODE_RE.test(code) || seen.has(code)) continue;
+    if (url.length > 2048) continue;
+    if (!/^https:\/\//i.test(url) && !/^data:image\//i.test(url)) continue;
+    const flags = item['flags'];
+    if (flags !== undefined && (!Number.isInteger(flags) || (flags as number) < 0)) continue;
+    seen.add(code);
     cleanEmotes.push({
       code,
       url,
-      flags: typeof item['flags'] === 'number' ? item['flags'] : 0,
+      flags: typeof flags === 'number' ? flags : 0,
     });
+    if (cleanEmotes.length >= MAX_CUSTOM_SET_EMOTES) break;
   }
+  if (!cleanEmotes.length && emotes.length) return null;
+
   return {
-    id,
-    name,
+    id: id.slice(0, 100),
+    name: cleanName,
     enabled: value['enabled'] !== false,
     emotes: cleanEmotes,
   };
@@ -390,7 +438,9 @@ export function normalizeSettings(value: unknown, defaults: AppSettings): AppSet
   return {
     globalMode: value['globalMode'] === true,
     emoteScale:
-      typeof scale === 'number' && Number.isFinite(scale) ? Math.min(2, Math.max(0.5, scale)) : defaults.emoteScale,
+      typeof scale === 'number' && Number.isFinite(scale)
+        ? Math.min(MAX_EMOTE_SCALE, Math.max(MIN_EMOTE_SCALE, scale))
+        : defaults.emoteScale,
     autoChannel: value['autoChannel'] !== false,
     pickerEnabled: value['pickerEnabled'] !== false,
     providers: {
@@ -433,6 +483,7 @@ export function normalizeState(
     registries: hasRegistries ? registries : defaults.registries,
     plugins,
     bindings,
+    globalBinding: normalizeGlobalBinding(value['globalBinding'], defaults.globalBinding),
     customSets,
   };
 }

@@ -1,8 +1,10 @@
+import { MAX_RESOLVED_EMOTES } from '../config';
 import type {
   AppSettings,
   Binding,
   CustomSet,
   Emote,
+  GlobalBinding,
   ResolvedEmotes,
   SevenTvSetInfo,
   SevenTvSpec,
@@ -14,6 +16,7 @@ import { fetchSevenTvGlobal, fetchSevenTvSet, fetchSevenTvUser } from './seven-t
 
 export interface ResolveOptions {
   binding: Binding | null;
+  globalBinding: GlobalBinding;
   settings: AppSettings;
   customSets: CustomSet[];
   sevenTv?: SevenTvSpec;
@@ -26,21 +29,28 @@ interface Layer {
 }
 
 /**
- * Priority: manual binding sets, auto 7TV channel, custom sets, then global
- * providers. The first provider that defines a code wins.
+ * Priority: per-chat binding sets, global binding sets, auto 7TV channel,
+ * custom sets, then global providers. The first provider that defines a code
+ * wins.
  */
 export async function resolveEmotes(options: ResolveOptions): Promise<ResolvedEmotes> {
   const layers: Layer[] = [];
   const bindingSets = options.binding?.sets ?? [];
 
-  if (bindingSets.length) {
-    for (const id of bindingSets) {
-      layers.push({
-        label: `7tv:set:${id}`,
-        load: async () => (await fetchSevenTvSet(id)).emotes,
-      });
-    }
-  } else if (options.settings.autoChannel && options.sevenTv && options.sevenTvId) {
+  for (const id of bindingSets) {
+    layers.push({
+      label: `7tv:set:${id}`,
+      load: async () => (await fetchSevenTvSet(id)).emotes,
+    });
+  }
+  for (const id of options.globalBinding.sets) {
+    layers.push({
+      label: `7tv:global-set:${id}`,
+      load: async () => (await fetchSevenTvSet(id)).emotes,
+    });
+  }
+
+  if (!bindingSets.length && options.settings.autoChannel && options.sevenTv && options.sevenTvId) {
     const { platform } = options.sevenTv;
     const id = options.sevenTvId;
     layers.push({
@@ -92,8 +102,10 @@ export async function resolveEmotes(options: ResolveOptions): Promise<ResolvedEm
   const byCode = new Map<string, Emote>();
   const sources: string[] = [];
   const errors: string[] = [];
+  let limitReached = false;
 
   results.forEach((result, index) => {
+    if (limitReached) return;
     const layer = layers[index];
     if (!layer) return;
     if (result.error) {
@@ -103,9 +115,17 @@ export async function resolveEmotes(options: ResolveOptions): Promise<ResolvedEm
     if (!result.emotes.length) return;
     sources.push(layer.label);
     for (const emote of result.emotes) {
+      if (byCode.size >= MAX_RESOLVED_EMOTES) {
+        limitReached = true;
+        break;
+      }
       if (!byCode.has(emote.code)) byCode.set(emote.code, emote);
     }
   });
+
+  if (limitReached) {
+    errors.push(`Emote limit of ${MAX_RESOLVED_EMOTES} reached; lower-priority sources were skipped`);
+  }
 
   return { emotes: Array.from(byCode.values()), sources, errors };
 }
@@ -113,5 +133,10 @@ export async function resolveEmotes(options: ResolveOptions): Promise<ResolvedEm
 export async function lookupSevenTvSet(input: string): Promise<SevenTvSetInfo> {
   const id = parseSevenTvSetId(input);
   const set = await fetchSevenTvSet(id);
-  return { id, name: set.name, emoteCount: set.emotes.length };
+  return {
+    id,
+    name: set.name,
+    emoteCount: set.emotes.length,
+    preview: set.emotes.slice(0, 12).map(({ code, url }) => ({ code, url })),
+  };
 }

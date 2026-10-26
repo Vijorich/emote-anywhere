@@ -7,7 +7,9 @@ export default defineConfig({
     name: 'Emote Anywhere',
     description:
       '7TV, BTTV and FFZ emotes in any chat. Site support is added by declarative plugins, not extension updates.',
+    homepage_url: 'https://github.com/Vijorich/emote-anywhere',
     permissions: ['storage', 'scripting', 'activeTab'],
+    ...(browser === 'firefox' ? {} : { minimum_chrome_version: '123' }),
     // Background image proxy. BTTV's CDN does not send CORS headers; the other
     // two are listed so the proxy keeps working if their headers change.
     host_permissions: [
@@ -21,7 +23,7 @@ export default defineConfig({
       ? {
           browser_specific_settings: {
             gecko: {
-              id: 'emote-anywhere@local',
+              id: 'emote-anywhere@vijorich.github.io',
               strict_min_version: '128.0',
               data_collection_permissions: {
                 required: ['none'],

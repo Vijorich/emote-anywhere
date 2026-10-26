@@ -1,5 +1,5 @@
 import type { AppSettings, Emote, PluginDescriptor } from '../core/types';
-import { closestAny, matchesAny, queryAllFirst } from './dom';
+import { closestAny, hasAnyDescendant, matchesAny, queryAllFirst } from './dom';
 import {
   EMOTE_CLASS,
   PICKER_HOST_CLASS,
@@ -60,9 +60,11 @@ export class ChatEngine {
   }
 
   stop(): void {
+    const wasRunning = !this.stopped;
     this.stopped = true;
     this.observer?.disconnect();
     this.observer = null;
+    if (wasRunning) this.restoreAll();
     if (this.timer !== null) {
       window.clearTimeout(this.timer);
       this.timer = null;
@@ -86,21 +88,22 @@ export class ChatEngine {
 
   private onMutations(records: MutationRecord[]): void {
     if (this.stopped) return;
+    const roots = this.settings.globalMode ? [] : this.chatRoots();
     for (const record of records) {
       if (this.isOurs(record.target)) continue;
       if (record.type === 'characterData') {
-        this.enqueue(record.target);
+        this.enqueue(record.target, roots);
         continue;
       }
       for (const node of Array.from(record.addedNodes)) {
         if (node.nodeType === Node.ELEMENT_NODE && this.isOurs(node)) continue;
-        this.enqueue(node);
+        this.enqueue(node, roots);
       }
     }
     this.schedule();
   }
 
-  private enqueue(node: Node): void {
+  private enqueue(node: Node, roots: Element[]): void {
     if (this.settings.globalMode) {
       if (this.isExcludedNode(node)) return;
       if (node.nodeType === Node.TEXT_NODE || node.nodeType === Node.ELEMENT_NODE) {
@@ -112,8 +115,9 @@ export class ChatEngine {
     const element =
       node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
     if (!element || this.isOurs(element)) return;
+    if (!roots.some((root) => root === element || root.contains(element))) return;
 
-    const message = this.findMessage(element);
+    const message = this.findMessage(element, roots);
     if (message) {
       this.pendingMessages.add(message);
       return;
@@ -126,7 +130,13 @@ export class ChatEngine {
   }
 
   private schedule(): void {
-    if (this.stopped || this.timer !== null) return;
+    if (
+      this.stopped ||
+      this.timer !== null ||
+      (!this.pendingMessages.size && !this.pendingNodes.size)
+    ) {
+      return;
+    }
     this.timer = window.setTimeout(() => {
       this.timer = null;
       this.flush();
@@ -145,18 +155,24 @@ export class ChatEngine {
 
   private processMessage(message: Element): void {
     if (this.stopped || !message.isConnected || this.isSkipped(message)) return;
-    const before = readSource(message);
+    const roots = this.textRoots(message);
+    const sources = roots.map((root) =>
+      readSource(root, (element) => this.isExcludedElement(element)),
+    );
+    const before = JSON.stringify(sources);
     const previous = this.snapshots.get(message);
 
     if (previous === before) {
       // React may replace our spans with identical plain text. The source
       // snapshot is unchanged, but the rendered emotes are gone.
       const hasRendered = message.querySelector(`.${EMOTE_CLASS}`) !== null;
-      if (hasRendered || !tokenizeText(before, this.lookup).length) return;
+      if (hasRendered || !sources.some((source) => tokenizeText(source, this.lookup).length)) {
+        return;
+      }
     }
     if (previous !== undefined) restoreEmotes(message);
 
-    for (const node of this.collectTextNodes(message)) this.renderNode(node);
+    for (const node of this.collectTextNodes(roots)) this.renderNode(node);
     this.snapshots.set(message, before);
   }
 
@@ -186,11 +202,14 @@ export class ChatEngine {
     );
   }
 
-  private collectTextNodes(message: Element): Text[] {
+  private textRoots(message: Element): Element[] {
     const containers = this.descriptor.chat.text?.length
       ? queryAllFirst(message, this.descriptor.chat.text)
       : [];
-    const roots = containers.length ? containers : [message];
+    return containers.length ? containers : [message];
+  }
+
+  private collectTextNodes(roots: Element[]): Text[] {
     const result = new Set<Text>();
     for (const root of roots) {
       for (const text of this.walkText(root)) result.add(text);
@@ -225,40 +244,48 @@ export class ChatEngine {
   }
 
   private findMessages(root: Element): Element[] {
-    const found = new Set<Element>();
-    if (matchesAny(root, this.messages)) found.add(root);
     for (const selector of this.messages) {
+      const found: Element[] = [];
       try {
-        root.querySelectorAll(selector).forEach((element) => found.add(element));
+        if (root.matches(selector)) found.push(root);
+        root.querySelectorAll(selector).forEach((element) => found.push(element));
       } catch (error) {
         console.warn(`[emote-anywhere] invalid message selector "${selector}"`, error);
       }
+      if (!found.length) continue;
+
+      const candidates = new Set(found);
+      return found.filter((element) => {
+        for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+          if (candidates.has(parent)) return false;
+          if (parent === root) break;
+        }
+        return true;
+      });
     }
-    const list = Array.from(found);
-    return list.filter(
-      (element) => !list.some((other) => other !== element && other.contains(element)),
-    );
+    return [];
   }
 
-  private findMessage(element: Element): Element | null {
-    let current: Element | null = element;
-    while (current) {
-      if (matchesAny(current, this.messages)) {
-        return this.isInRoots(current) ? current : null;
+  private findMessage(element: Element, roots: Element[]): Element | null {
+    const ancestors: Element[] = [];
+    for (let current: Element | null = element; current; current = current.parentElement) {
+      if (!roots.some((root) => root === current || root.contains(current))) break;
+      ancestors.push(current);
+    }
+    for (const selector of this.messages) {
+      let found: Element | null = null;
+      for (const ancestor of ancestors) {
+        if (matchesAny(ancestor, [selector])) found = ancestor;
       }
-      current = current.parentElement;
+      if (found) return found;
     }
     return null;
   }
 
-  private isInRoots(message: Element): boolean {
-    const roots = this.chatRoots();
-    return roots.some((root) => root === message || root.contains(message));
-  }
-
   private isSkipped(message: Element): boolean {
     const skip = this.descriptor.chat.skip;
-    return skip?.length ? matchesAny(message, skip) : false;
+    if (!skip?.length) return false;
+    return matchesAny(message, skip) || hasAnyDescendant(message, skip);
   }
 
   private isExcludedElement(element: Element): boolean {

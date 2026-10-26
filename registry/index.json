@@ -33,7 +33,12 @@
           ".ConvoReactions",
           ".Reactions"
         ],
-        "skip": [".ConvoMessage--deleted", ".ConvoMessage--system"],
+        "skip": [
+          ".ConvoMessage--deleted",
+          ".ConvoMessage--system",
+          ".ConvoHistory__messageWrapper:has(.ConvoMessage--deleted)",
+          ".ConvoHistory__messageWrapper:has(.ConvoMessage--system)"
+        ],
         "channel": [
           { "from": "urlParam", "param": "sel" },
           { "from": "urlRegex", "regex": "/im/convo/(\\d+)", "group": 1 },

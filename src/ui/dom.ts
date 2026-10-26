@@ -41,10 +41,6 @@ export function h<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-export function clear(node: Element): void {
-  node.replaceChildren();
-}
-
 export function link(href: string, text: string): HTMLAnchorElement {
   return h('a', { href, target: '_blank', rel: 'noreferrer', text });
 }

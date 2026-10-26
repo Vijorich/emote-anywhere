@@ -40,3 +40,14 @@ export function closestAny(element: Element, selectors: string[]): Element | nul
   }
   return null;
 }
+
+export function hasAnyDescendant(root: Element, selectors: string[]): boolean {
+  for (const selector of selectors) {
+    try {
+      if (root.querySelector(selector)) return true;
+    } catch (error) {
+      warnOnce(selector, error);
+    }
+  }
+  return false;
+}
