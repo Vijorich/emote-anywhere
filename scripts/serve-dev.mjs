@@ -38,6 +38,14 @@ const server = createServer(async (request, response) => {
   }
 });
 
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.log(`Port ${port} is already in use. The dev page server is probably already running.`);
+    process.exit(0);
+  }
+  throw error;
+});
+
 server.listen(port, '127.0.0.1', () => {
   console.log(`Mock chat on http://localhost:${port}/mock-chat.html`);
 });
