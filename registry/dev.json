@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "name": "Local development",
+  "plugins": [
+    {
+      "schemaVersion": 1,
+      "id": "mock",
+      "name": "Local mock chat",
+      "version": "1.0.0",
+      "description": "Test page for the engine, picker and dynamic content script registration.",
+      "priority": 10,
+      "proxyImages": true,
+      "matches": ["http://localhost/*"],
+      "chat": {
+        "roots": ["#chat"],
+        "messages": [".message"],
+        "text": [".message-text"],
+        "exclude": ["a", "code", "pre"],
+        "channel": [
+          { "from": "urlParam", "param": "channel" },
+          { "from": "constant", "value": "default" }
+        ]
+      },
+      "composer": {
+        "selectors": [".composer-input"],
+        "kind": "contenteditable"
+      }
+    }
+  ]
+}

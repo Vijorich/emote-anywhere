@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mock chat — Emote Anywhere</title>
+    <style>
+      body {
+        margin: 0;
+        font: 14px/1.5 system-ui, sans-serif;
+        background: #14141a;
+        color: #ececf2;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 1fr 280px;
+        min-height: 100vh;
+      }
+      .chat {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        overflow-y: auto;
+        height: calc(100vh - 80px);
+      }
+      .message {
+        background: #1e1e26;
+        border: 1px solid #2d2d38;
+        border-radius: 10px;
+        padding: 8px 10px;
+      }
+      .author {
+        color: #8f83ff;
+        font-weight: 600;
+        margin-right: 6px;
+      }
+      .message-text {
+        white-space: pre-wrap;
+      }
+      .message .ea-e img {
+        vertical-align: middle;
+      }
+      .composer {
+        position: fixed;
+        left: 0;
+        right: 280px;
+        bottom: 0;
+        padding: 12px;
+        background: #1a1a22;
+        border-top: 1px solid #2d2d38;
+      }
+      .composer-input {
+        min-height: 24px;
+        padding: 8px 10px;
+        border: 1px solid #3a3a48;
+        border-radius: 9px;
+        background: #101016;
+        outline: none;
+      }
+      .composer-input:focus {
+        border-color: #8f83ff;
+      }
+      aside {
+        border-left: 1px solid #2d2d38;
+        padding: 16px;
+      }
+      code {
+        background: #26262f;
+        padding: 1px 4px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <main>
+        <div id="chat" class="chat"></div>
+        <div class="composer">
+          <div class="composer-input" contenteditable="true" data-testid="composer"></div>
+        </div>
+      </main>
+      <aside>
+        <h3>Mock chat</h3>
+        <p>Messages are added every two seconds. Use this page to test selectors, recycling and the picker.</p>
+        <p class="outside">Outside text: peepoSad (must stay text).</p>
+        <p><code>peepoSad</code> <code>PepePls</code> <code>PETPET</code></p>
+      </aside>
+    </div>
+    <script>
+      const chat = document.querySelector('#chat');
+      let index = 0;
+
+      function addMessage(text) {
+        const message = document.createElement('div');
+        message.className = 'message';
+        const author = document.createElement('span');
+        author.className = 'author';
+        author.textContent = 'user' + (index % 5);
+        const body = document.createElement('span');
+        body.className = 'message-text';
+        body.textContent = text;
+        message.append(author, body);
+        chat.append(message);
+        chat.scrollTop = chat.scrollHeight;
+        index++;
+      }
+
+      addMessage('hello peepoSad and PepePls');
+      addMessage('zero width: PepePls PETPET');
+      addMessage('punctuation: (peepoSad), :PepePls:!');
+      addMessage('bttv CiGrip and ffz ZrehplaR');
+      addMessage('code stays literal: peepoSad');
+
+      setInterval(() => {
+        addMessage('auto #' + index + ' peepoSad PepePls');
+        if (chat.children.length > 40) chat.firstElementChild.remove();
+      }, 2000);
+    </script>
+  </body>
+</html>

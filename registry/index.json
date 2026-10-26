@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "name": "Emote Anywhere",
+  "plugins": [
+    {
+      "schemaVersion": 1,
+      "id": "vk",
+      "name": "VK Messenger",
+      "version": "0.2.0",
+      "description": "VK web messenger (vk.ru / vk.com). Messages are read from the Convo history; images are proxied because VK blocks external image hosts.",
+      "priority": 20,
+      "proxyImages": true,
+      "matches": [
+        "https://vk.com/*",
+        "https://*.vk.com/*",
+        "https://vk.ru/*",
+        "https://*.vk.ru/*"
+      ],
+      "chat": {
+        "roots": ["#reforged-root"],
+        "messages": [".ConvoHistory__messageWrapper", ".ConvoMessage", ".ConvoMessageWithoutBubble"],
+        "exclude": [
+          "a",
+          "code",
+          "pre",
+          "button",
+          "[role=button]",
+          ".ConvoMessageHeader",
+          ".ConvoMessageInfo",
+          ".ConvoMessageInfoWithoutBubbles",
+          ".Attachments",
+          ".ConvoMessageWithoutBubble__attachments",
+          ".ConvoReactions",
+          ".Reactions"
+        ],
+        "skip": [".ConvoMessage--deleted", ".ConvoMessage--system"],
+        "channel": [
+          { "from": "urlParam", "param": "sel" },
+          { "from": "urlRegex", "regex": "/im/convo/(\\d+)", "group": 1 },
+          { "from": "constant", "value": "default" }
+        ]
+      },
+      "composer": {
+        "selectors": [
+          ".ComposerInput__input",
+          ".ConvoMain__composer [contenteditable]:not([contenteditable=\"false\"])",
+          ".ConvoMain__composer textarea"
+        ],
+        "kind": "auto"
+      }
+    }
+  ]
+}

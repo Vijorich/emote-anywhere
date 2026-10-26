@@ -1,0 +1,239 @@
+:root {
+  color-scheme: light dark;
+  --bg: #101014;
+  --card: #18181e;
+  --text: #ececf2;
+  --muted: #9a9aa8;
+  --border: #2d2d36;
+  --accent: #8f83ff;
+  --accent-soft: #26213f;
+  --danger: #ff7b88;
+  --ok: #4ad08b;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f5f5f8;
+    --card: #ffffff;
+    --text: #1b1b21;
+    --muted: #6b6b78;
+    --border: #e2e2ea;
+    --accent: #6b5cff;
+    --accent-soft: #ece9ff;
+    --danger: #c22f3f;
+    --ok: #1f7a4d;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  width: 360px;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+#app {
+  padding: 14px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+header strong {
+  font-size: 15px;
+}
+
+.site {
+  color: var(--muted);
+  font-size: 11px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 11px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 6px;
+}
+
+.chip button {
+  border: 0;
+  background: none;
+  color: inherit;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+}
+
+button {
+  font: inherit;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button.danger {
+  color: var(--danger);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+input[type='text'] {
+  font: inherit;
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+input[type='text']:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+
+label.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.stack {
+  display: grid;
+  gap: 9px;
+}
+
+.form {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.banner {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--accent-soft);
+}
+
+.banner.error {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: transparent;
+}
+
+.banner.ok {
+  color: var(--ok);
+  border-color: var(--ok);
+  background: transparent;
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+code {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 10px 0;
+}

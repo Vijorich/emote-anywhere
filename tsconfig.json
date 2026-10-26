@@ -1,0 +1,10 @@
+{
+  "extends": "./.wxt/tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "types": ["node"]
+  },
+  "include": ["src", "tests", "scripts", "wxt.config.ts", "vitest.config.ts"]
+}
