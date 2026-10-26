@@ -1,5 +1,8 @@
 # Emote Anywhere
 
+[![CI](https://github.com/Vijorich/emote-anywhere/actions/workflows/ci.yml/badge.svg)](https://github.com/Vijorich/emote-anywhere/actions/workflows/ci.yml)
+[![Release](https://github.com/Vijorich/emote-anywhere/actions/workflows/release.yml/badge.svg)](https://github.com/Vijorich/emote-anywhere/releases)
+
 7TV, BTTV and FFZ emotes in any web chat. Site support is not built into the
 extension: each chat is described by a declarative JSON plugin, so selectors can be
 fixed without shipping a new extension version.
