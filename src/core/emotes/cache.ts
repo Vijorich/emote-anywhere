@@ -11,7 +11,6 @@ interface CacheEntry<T> {
   bytes?: number;
 }
 
-/** v2: 7TV image URLs prefer AVIF. */
 const CACHE_VERSION = 2;
 
 type CacheMap = Record<string, CacheEntry<unknown>>;

@@ -28,11 +28,7 @@ interface Layer {
   load: () => Promise<Emote[]>;
 }
 
-/**
- * Priority: per-chat binding sets, global binding sets, auto 7TV channel,
- * custom sets, then global providers. The first provider that defines a code
- * wins.
- */
+/** Priority: per-chat sets, global sets, auto 7TV, custom sets, then global providers; first code wins. */
 export async function resolveEmotes(options: ResolveOptions): Promise<ResolvedEmotes> {
   const layers: Layer[] = [];
   const bindingSets = options.binding?.sets ?? [];

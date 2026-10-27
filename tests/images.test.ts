@@ -108,9 +108,9 @@ describe('background image proxy', () => {
 });
 
 describe('content image fallback', () => {
-  it('evicts data URLs when the 32 MiB byte budget is exceeded', async () => {
-    const a = `data:image/png;base64,${'a'.repeat(17 * 1024 * 1024)}`;
-    const b = `data:image/png;base64,${'b'.repeat(17 * 1024 * 1024)}`;
+  it('evicts data URLs when the 8 MiB byte budget is exceeded', async () => {
+    const a = `data:image/png;base64,${'a'.repeat(5 * 1024 * 1024)}`;
+    const b = `data:image/png;base64,${'b'.repeat(5 * 1024 * 1024)}`;
     const aUrl = 'https://cdn.7tv.app/a.png';
     const bUrl = 'https://cdn.7tv.app/b.png';
     rpcMock.mockImplementation(async (_type: string, payload: { url: string }) => ({

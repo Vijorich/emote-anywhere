@@ -14,7 +14,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - id: version
         run: echo "value=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
@@ -29,12 +29,12 @@ jobs:
           fi
 
       - if: steps.tag.outputs.exists == 'false'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 12.15.0
 
       - if: steps.tag.outputs.exists == 'false'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -56,6 +56,9 @@ jobs:
         run: pnpm release:check
 
       - if: steps.tag.outputs.exists == 'false'
+        run: node scripts/changelog-section.mjs "${{ steps.version.outputs.value }}" > release-notes.md
+
+      - if: steps.tag.outputs.exists == 'false'
         run: pnpm typecheck
 
       - if: steps.tag.outputs.exists == 'false'
@@ -68,9 +71,9 @@ jobs:
         run: pnpm zip:firefox
 
       - if: steps.tag.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.version.outputs.value }}
           name: Emote Anywhere v${{ steps.version.outputs.value }}
+          body_path: release-notes.md
           files: .output/*.zip
-          generate_release_notes: true

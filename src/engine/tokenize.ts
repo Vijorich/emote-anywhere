@@ -1,10 +1,10 @@
-import type { Emote } from '../core/types';
+import type { ChatEmote } from '../core/types';
 
 export interface EmoteToken {
   code: string;
   start: number;
   end: number;
-  emote: Emote;
+  emote: ChatEmote;
 }
 
 const PUNCTUATION = new Set(
@@ -12,10 +12,7 @@ const PUNCTUATION = new Set(
 );
 
 const MAX_CODE_LENGTH = 64;
-
-function isSpace(char: string): boolean {
-  return /\s/u.test(char) || char === '\u200b' || char === '\ufeff';
-}
+const WORD_RE = /[^\s\u200b\ufeff]+/gu;
 
 function peel(text: string, start: number, end: number): [number, number] {
   let left = start;
@@ -25,19 +22,13 @@ function peel(text: string, start: number, end: number): [number, number] {
   return [left, right];
 }
 
-/**
- * Chat tokens are whitespace separated. Leading/trailing punctuation is
- * stripped so "peepoSad," and ":peepoSad:" both resolve to the same code.
- */
-export function tokenizeText(text: string, lookup: Map<string, Emote>): EmoteToken[] {
+/** Tokens are whitespace-separated; strip surrounding punctuation so "peepoSad," and ":peepoSad:" both resolve. */
+export function tokenizeText(text: string, lookup: Map<string, ChatEmote>): EmoteToken[] {
   const tokens: EmoteToken[] = [];
-  let index = 0;
-  while (index < text.length) {
-    while (index < text.length && isSpace(text[index] ?? '')) index++;
-    const wordStart = index;
-    while (index < text.length && !isSpace(text[index] ?? '')) index++;
-    const wordEnd = index;
-    if (wordEnd <= wordStart) break;
+  for (const match of text.matchAll(WORD_RE)) {
+    const word = match[0];
+    const wordStart = match.index;
+    const wordEnd = wordStart + word.length;
 
     const [start, end] = peel(text, wordStart, wordEnd);
     if (end <= start) continue;

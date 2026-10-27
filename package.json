@@ -1,11 +1,11 @@
 {
   "name": "emote-anywhere",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@12.15.0",
-  "description": "7TV, BTTV and FFZ emotes in any chat, with declarative site plugins.",
+  "description": "7TV, BTTV and FFZ emotes in VK Messenger and other chats, with declarative site plugins.",
   "author": "Viktor Antonov",
   "homepage": "https://github.com/Vijorich/emote-anywhere",
   "repository": {

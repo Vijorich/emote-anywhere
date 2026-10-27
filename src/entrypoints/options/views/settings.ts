@@ -6,6 +6,7 @@ import { switchRow } from '../../../ui/components';
 import { h } from '../../../ui/dom';
 import { clearSetLookupCache, lookupSet } from '../../../ui/sets';
 import type { OptionsContext } from '../context';
+import { withBusy } from '../shared';
 
 export function settingsView(current: AppState, ctx: OptionsContext): HTMLElement {
   const { settings } = current;
@@ -16,37 +17,32 @@ export function settingsView(current: AppState, ctx: OptionsContext): HTMLElemen
     'main',
     { class: 'view' },
     ctx.noticeBanner(),
-    h(
-      'header',
-      { class: 'view-head' },
-      h('h1', { text: 'Settings' }),
-      h('p', {
-        class: 'lede',
-        text: 'How the engine behaves on supported sites. These settings apply to every chat.',
-      }),
-    ),
+    h('header', { class: 'view-head' }, h('h1', { text: 'Settings' })),
     h(
       'section',
       { class: 'section' },
-      h('h2', { text: 'Behaviour' }),
+      h('h2', { text: 'Chat' }),
       h(
         'div',
         { class: 'panel' },
         switchRow({
-          title: 'Global mode',
-          description: 'Replace emote codes anywhere on a supported site, not only inside chat.',
+          title: 'Emotes everywhere',
+          description: 'Render emotes in all page text, not only chat messages.',
+          focusKey: 'setting-globalMode',
           checked: settings.globalMode,
           onChange: (checked) => ctx.updateSettings({ globalMode: checked }),
         }),
         switchRow({
-          title: 'Auto channel',
-          description: 'Use the 7TV channel connected to the site when no per-chat binding exists.',
+          title: 'Channel emotes',
+          description: "Load the site's 7TV channel when the chat has no set.",
+          focusKey: 'setting-autoChannel',
           checked: settings.autoChannel,
           onChange: (checked) => ctx.updateSettings({ autoChannel: checked }),
         }),
         switchRow({
           title: 'Emote picker',
-          description: 'Show the picker button in a chat.',
+          description: 'Show a picker button in the chat composer.',
+          focusKey: 'setting-pickerEnabled',
           checked: settings.pickerEnabled,
           onChange: (checked) => ctx.updateSettings({ pickerEnabled: checked }),
         }),
@@ -55,14 +51,10 @@ export function settingsView(current: AppState, ctx: OptionsContext): HTMLElemen
     h(
       'section',
       { class: 'section' },
-      h('h2', { text: 'Emote size' }),
+      h('h2', { text: 'Size' }),
       h(
         'div',
         { class: 'panel' },
-        h('p', {
-          class: 'section-note',
-          text: 'Height relative to the chat text. Default is 1.2×, which measures 1.8em.',
-        }),
         h(
           'div',
           { class: 'range-row' },
@@ -84,30 +76,14 @@ export function settingsView(current: AppState, ctx: OptionsContext): HTMLElemen
     h(
       'section',
       { class: 'section' },
-      h('h2', { text: 'Maintenance' }),
+      h('h2', { text: 'Cache' }),
       h(
         'div',
         { class: 'panel' },
-        h('p', {
-          class: 'section-note',
-          text: 'Sets are cached for one hour and provider globals for six. Clear the cache when a set changed upstream.',
-        }),
         h(
           'div',
           { class: 'form-actions' },
-          h('button', {
-            class: 'btn',
-            type: 'button',
-            text: 'Clear emote cache',
-            onclick: () => {
-              void rpc('cache/clear')
-                .then(() => {
-                  clearSetLookupCache();
-                  return ctx.refresh('Emote cache cleared');
-                })
-                .catch((error: unknown) => ctx.show(String(error), 'error'));
-            },
-          }),
+          clearCacheButton(ctx),
         ),
       ),
     ),
@@ -128,6 +104,7 @@ function scaleInput(value: number, preview: HTMLElement, ctx: OptionsContext): H
         const next = Number(input.value);
         output.textContent = `${next.toFixed(1)}×`;
         updatePreviewScale(preview, next);
+        syncFill();
       },
       change: () => {
         const next = Number(input.value);
@@ -141,11 +118,18 @@ function scaleInput(value: number, preview: HTMLElement, ctx: OptionsContext): H
             input.value = String(previous);
             output.textContent = `${previous.toFixed(1)}×`;
             updatePreviewScale(preview, previous);
+            syncFill();
             ctx.show(String(error), 'error');
           });
       },
     },
   });
+  const syncFill = (): void => {
+    const next = Number(input.value);
+    const percent = ((next - MIN_EMOTE_SCALE) / (MAX_EMOTE_SCALE - MIN_EMOTE_SCALE)) * 100;
+    input.style.setProperty('--fill', `${percent}%`);
+  };
+  syncFill();
   return h('div', { class: 'range-control' }, input, output);
 }
 
@@ -154,8 +138,26 @@ function updatePreviewScale(preview: HTMLElement, scale: number): void {
     '--emote-height',
     `${(EMOTE_BASE_HEIGHT_EM * scale).toFixed(2)}em`,
   );
-  const note = preview.querySelector<HTMLElement>('.preview-note');
-  if (note) note.textContent = `${(EMOTE_BASE_HEIGHT_EM * scale).toFixed(1)}em tall`;
+}
+
+function clearCacheButton(ctx: OptionsContext): HTMLButtonElement {
+  const button = h('button', {
+    class: 'btn',
+    type: 'button',
+    text: 'Clear cache',
+  });
+  button.addEventListener('click', () => {
+    void withBusy(button, 'Clearing…', async () => {
+      try {
+        await rpc('cache/clear');
+        clearSetLookupCache();
+        await ctx.refresh('Cache cleared');
+      } catch (error) {
+        ctx.show(error instanceof Error ? error.message : String(error), 'error');
+      }
+    });
+  });
+  return button;
 }
 
 function renderPreview(container: HTMLElement, current: AppState, scale: number): void {
@@ -169,23 +171,34 @@ function renderPreview(container: HTMLElement, current: AppState, scale: number)
     '--emote-height',
     `${(EMOTE_BASE_HEIGHT_EM * scale).toFixed(2)}em`,
   );
-  container.append(
-    line,
-    h('span', {
-      class: 'preview-note',
-      text: `${(EMOTE_BASE_HEIGHT_EM * scale).toFixed(1)}em tall`,
-    }),
-  );
-  if (!first) return;
+  container.append(line);
+  if (!first) {
+    container.append(
+      h('p', {
+        class: 'section-note',
+        text: 'Add a global set in Chat sets to preview emote size.',
+      }),
+    );
+    return;
+  }
 
   void lookupSet(first).then((info) => {
-    if (!info || !line.isConnected) return;
+    if (!line.isConnected) return;
+    if (!info) {
+      container.append(
+        h('p', {
+          class: 'section-note',
+          text: 'Could not load the set. Check your connection and reload the page.',
+        }),
+      );
+      return;
+    }
     for (const emote of (info.preview ?? []).slice(0, 6)) {
       line.append(
         h('img', {
           class: 'preview-emote',
           src: emote.url,
-          alt: emote.code,
+          alt: '',
           title: emote.code,
           decoding: 'async',
         }),

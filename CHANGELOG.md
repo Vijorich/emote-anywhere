@@ -4,21 +4,86 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-10-27
+
+### Added
+
+- Sources, Chat sets, Settings and Help replace the old Overview screen.
+- Plugin details dialog with the full description, authors, homepage, host
+  patterns, an enable switch and a remove action.
+- Custom sets are added from an inline disclosure; registries from a card pinned at
+  the bottom of Sources, below every registry.
+- Set names, set chips and registry URLs link to their 7TV or registry page.
+- The picker stays open after an insertion and keeps the caret between picks.
+  Enter after a search inserts the first match.
+- Keyboard focus rings are tracked by input modality, so a mouse click does not
+  draw the tab ring.
+
+### Changed
+
+- New visual language: green tinted surfaces, Arial and Arial Black, an 880px
+  reading column, filled controls without outlines, and a custom size slider.
+- New app icon: a cream face on the green tile, with a separate 16px drawing for
+  toolbar legibility. The same face is used in the header mark and the picker
+  button.
+- The VK plugin is named VK.
+- The switch is the last control in every row.
+- The extension version moved from Help to the sidebar footer and the mobile menu.
+- The picker search is a soft filled field; its accent ring appears only for
+  keyboard focus.
+- Global set cards highlight and open on a full-card click, like registry cards.
+- Enabling or disabling a plugin no longer posts a notice. Errors still do.
+- Help no longer lists picker shortcuts, because the extension has no global
+  hotkeys.
+- Chat rendering observes only the chat roots, skips its own DOM writes and no
+  longer re-tokenizes unchanged messages.
+- Frames without a chat root no longer register and resolve the full emote set,
+  which speeds up pages with many iframes.
+- The tokenizer and exclusion matching do less work per text node, and custom
+  sets are compared without serializing up to 20,000 emotes.
+- The background memoizes loaded state for five minutes and caches resolved
+  emote sets for repeat frame registrations.
+- Picker search precomputes lowercased codes and debounces searches on sets of
+  500 or more emotes.
+- The registration payload omits the unused provider field, and the
+  content-script image cache is capped at 200 entries / 8 MiB per frame.
+
+### Fixed
+
+- Switches were off centre: the knob sat 3px from the top and 1px from the bottom.
+  Geometry is now symmetric at every size.
+- Destructive actions looked like labels instead of controls.
+- The picker reported an expanded combobox while its listbox was closed.
+- The registry URL broke inside a word instead of at its slashes.
+- Failed set lookups left an empty media placeholder behind.
+- Empty states now name the next action instead of only the missing data.
+- The plugin details button had the whole row as its accessible name.
+- The mobile options header lost the product name below 900px.
+- Help no longer claims that every image comes from a provider, and no longer asks
+  users to enable image proxying they cannot control.
+- Plugin API docs no longer imply that a plugin can call a lookup service.
+- Store screenshot docs describe 1280x800 as an accepted size, not a required one.
+
+### Removed
+
+- The Overview screen and its styles.
+- The picker shortcut list in Help and its `kbd` styles.
+
 ## [0.2.0] - 2026-10-27
 
 ### Added
 
 - The emote picker stays open after an insertion, so several emotes can be added
   without reopening it. The caret position is preserved between picks.
-- Set names and binding chips link to their 7TV set page in the options page and
+- Set names and set chips link to their 7TV set page in the options page and
   popup. Registry URLs are clickable too.
 - Plugin rows in Sources open a details dialog with the full description, authors,
   homepage and every host match pattern.
 
 ### Changed
 
-- 7TV emote URLs prefer AVIF files, which are roughly a quarter of the WebP payload
-  on `cdn.7tv.app`.
+- 7TV emote URLs prefer AVIF files, which are smaller than the WebP files on
+  `cdn.7tv.app`.
 - Image proxy caches keep up to 600 entries / 32 MiB and retry a transient failure
   once.
 
@@ -40,12 +105,14 @@ First public release.
 - Declarative JSON plugin registry, fetched from GitHub Pages and refreshed without
   an extension update. VK Messenger is the first plugin.
 - Emote picker with search and keyboard navigation, plus per-chat and global 7TV
-  binding priority.
+  set priority.
 - Settings app (Overview, Sources, Bindings, Settings, Help) and a per-chat popup.
-- Configurable emote size, 0.5×–3.0×, default 1.2×.
-- Custom `code → image URL` sets.
+- Configurable emote size, 0.5x to 3.0x, default 1.2x.
+- Custom `code` to image URL sets.
 - Background image proxy for sites with a strict image CSP.
 - Chrome/Edge MV3 and Firefox MV3 builds.
 
+[Unreleased]: https://github.com/Vijorich/emote-anywhere/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Vijorich/emote-anywhere/releases/tag/v0.3.0
 [0.2.0]: https://github.com/Vijorich/emote-anywhere/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Vijorich/emote-anywhere/releases/tag/v0.1.0

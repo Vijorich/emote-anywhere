@@ -39,11 +39,20 @@ function contentComposer(text = 'AB'): HTMLElement {
   return composer;
 }
 
-function startPicker(spec = descriptor()): EmotePicker {
-  const picker = new EmotePicker(spec, emotes, { pickerEnabled: true });
+function startPicker(spec = descriptor(), list = emotes): EmotePicker {
+  const picker = new EmotePicker(spec, list, { pickerEnabled: true });
   pickers.push(picker);
   picker.start();
   return picker;
+}
+
+function manyEmotes(count: number): Emote[] {
+  return Array.from({ length: count }, (_, index) => ({
+    code: `Emote${index}`,
+    url: `https://cdn.example/emote${index}.png`,
+    flags: 0,
+    provider: '7tv',
+  }));
 }
 
 function ui() {
@@ -57,7 +66,7 @@ function ui() {
     panel: shadow.querySelector<HTMLDivElement>('.panel')!,
     input: shadow.querySelector<HTMLInputElement>('.search')!,
     grid: shadow.querySelector<HTMLDivElement>('.grid')!,
-    status: shadow.querySelector<HTMLDivElement>('.status')!,
+    zoom: shadow.querySelector<HTMLDivElement>('.zoom')!,
   };
 }
 
@@ -73,9 +82,9 @@ function selectText(composer: HTMLElement, start: number, end = start): void {
   selection.addRange(range);
 }
 
-function key(target: EventTarget, key: string): void {
+function key(target: EventTarget, key: string, init: KeyboardEventInit = {}): void {
   target.dispatchEvent(
-    new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, composed: true }),
+    new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, composed: true, ...init }),
   );
 }
 
@@ -123,6 +132,8 @@ describe('EmotePicker composer selection', () => {
     const { input, panel, shadow } = ui();
     expect(panel.hidden).toBe(false);
     expect(shadow.activeElement).toBe(input);
+    expect(input.getAttribute('aria-label')).toBe('Search emotes');
+    key(input, 'ArrowDown');
     key(input, 'Enter');
 
     expect(composer.textContent).toBe('Azero B');
@@ -144,9 +155,82 @@ describe('EmotePicker composer selection', () => {
     all[0]!.click();
     expect(composer.textContent).toBe('Azero B');
     expect(ui().panel.hidden).toBe(false);
+    expect(ui().grid.querySelector('.cell.selected')).toBeNull();
 
     all[1]!.click();
     expect(composer.textContent).toBe('Azero one B');
+    expect(ui().panel.hidden).toBe(false);
+    expect(ui().grid.querySelector('.cell.selected')).toBeNull();
+  });
+
+  it('does not mark a cell selected for a pointer click', () => {
+    const composer = contentComposer();
+    startPicker();
+    selectText(composer, 1);
+    openFromFab();
+    const first = cells()[0]!;
+
+    first.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, composed: true }),
+    );
+    first.focus();
+    document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, composed: true }));
+    first.click();
+
+    expect(composer.textContent).toBe('Azero B');
+    expect(ui().grid.querySelector('.cell.selected')).toBeNull();
+    expect(ui().shadow.activeElement).toBe(ui().input);
+  });
+
+  it('shows a large preview on hold, follows the hovered tile, and does not insert', () => {
+    vi.useFakeTimers();
+    const composer = contentComposer();
+    startPicker();
+    openFromFab();
+    const all = cells();
+    all.forEach((cell, index) => {
+      vi.spyOn(cell, 'getBoundingClientRect').mockReturnValue({
+        left: index * 50,
+        right: index * 50 + 46,
+        top: 0,
+        bottom: 46,
+      } as DOMRect);
+    });
+    const first = all[0]!;
+
+    first.dispatchEvent(
+      new MouseEvent('pointerdown', {
+        bubbles: true,
+        composed: true,
+        clientX: 10,
+        clientY: 10,
+      }),
+    );
+    vi.advanceTimersByTime(400);
+
+    const { zoom } = ui();
+    const code = (): string | null | undefined =>
+      zoom.querySelector('.zoom-code')?.textContent;
+    expect(zoom.hidden).toBe(false);
+    expect(code()).toBe('zero');
+    expect(ui().grid.querySelector('.cell.selected')).toBeNull();
+
+    first.dispatchEvent(
+      new MouseEvent('pointermove', {
+        bubbles: true,
+        composed: true,
+        clientX: 60,
+        clientY: 10,
+      }),
+    );
+    expect(code()).toBe('one');
+    expect(ui().grid.querySelector('.cell.selected')).toBeNull();
+
+    document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, composed: true }));
+    expect(zoom.hidden).toBe(true);
+
+    first.click();
+    expect(composer.textContent).toBe('AB');
     expect(ui().panel.hidden).toBe(false);
   });
 
@@ -159,6 +243,7 @@ describe('EmotePicker composer selection', () => {
     fab.dispatchEvent(new Event('pointerdown', { bubbles: true, composed: true }));
     fab.focus();
     fab.click();
+    key(input, 'ArrowDown');
     key(input, 'Enter');
 
     expect(composer.textContent).toBe('Azero B');
@@ -171,6 +256,7 @@ describe('EmotePicker composer selection', () => {
     selectText(composer, 1, 3);
 
     openFromFab();
+    key(ui().input, 'ArrowDown');
     key(ui().input, 'Enter');
 
     expect(composer.textContent).toBe('Azero D');
@@ -188,6 +274,7 @@ describe('EmotePicker composer selection', () => {
     outside.focus();
     window.getSelection()?.removeAllRanges();
     openFromFab();
+    key(ui().input, 'ArrowDown');
     key(ui().input, 'Enter');
 
     expect(composer.textContent).toBe('ABCDzero ');
@@ -219,6 +306,7 @@ describe('EmotePicker composer selection', () => {
     composer.setSelectionRange(1, 1);
 
     openFromFab();
+    key(ui().input, 'ArrowDown');
     key(ui().input, 'Enter');
 
     expect(composer.value).toBe('Azero B');
@@ -243,7 +331,7 @@ describe('EmotePicker keyboard grid', () => {
     startPicker(descriptor('contenteditable', true));
     openFromFab();
 
-    const { grid, input, shadow, status } = ui();
+    const { grid, input, shadow } = ui();
     const originalCells = cells();
     const originalImages = originalCells.map((cell) => cell.querySelector('img'));
     const scroll = vi.fn();
@@ -253,23 +341,24 @@ describe('EmotePicker keyboard grid', () => {
       } as DOMRect);
       cell.scrollIntoView = scroll;
     });
-    const statusText = status.textContent;
     expect(grid.getAttribute('role')).toBe('listbox');
     expect(originalCells[0]!.getAttribute('aria-label')).toBe('zero');
-    expect(originalCells[0]!.querySelector('img')?.alt).toBe('zero');
-    expectSelected(originalCells, 0);
+    expect(originalCells[0]!.querySelector('img')?.getAttribute('alt')).toBe('');
+    expect(originalCells.every((cell, index) => cell.tabIndex === (index === 0 ? 0 : -1))).toBe(true);
+    expect(originalCells.some((cell) => cell.classList.contains('selected'))).toBe(false);
 
     key(input, 'ArrowDown');
-    expect(shadow.activeElement).toBe(originalCells[0]);
-    key(originalCells[0]!, 'ArrowRight');
+    expect(shadow.activeElement).toBe(input);
+    expect(input.getAttribute('aria-activedescendant')).toBe(originalCells[0]!.id);
+    expectSelected(originalCells, 0);
+    key(input, 'ArrowRight');
     expectSelected(originalCells, 1);
-    expect(shadow.activeElement).toBe(originalCells[1]);
-    key(originalCells[1]!, 'ArrowDown');
+    expect(input.getAttribute('aria-activedescendant')).toBe(originalCells[1]!.id);
+    key(input, 'ArrowDown');
     expectSelected(originalCells, 4);
-    expect(shadow.activeElement).toBe(originalCells[4]);
-    key(originalCells[4]!, 'ArrowLeft');
+    key(input, 'ArrowLeft');
     expectSelected(originalCells, 3);
-    key(originalCells[3]!, 'ArrowUp');
+    key(input, 'ArrowUp');
     expectSelected(originalCells, 0);
 
     originalCells[2]!.focus();
@@ -279,12 +368,173 @@ describe('EmotePicker keyboard grid', () => {
     expect(cells().map((cell) => cell.querySelector('img'))).toEqual(originalImages);
     expect(observers).toHaveLength(1);
     expect(observers[0]!.disconnect).not.toHaveBeenCalled();
-    expect(status.textContent).toBe(statusText);
     expect(scroll).toHaveBeenLastCalledWith({ block: 'nearest' });
 
     key(originalCells[2]!, 'Enter');
     expect(composer.textContent).toBe('ABtwo ');
     expect(shadow.activeElement).toBe(input);
+  });
+
+  it('opens the full-size preview with Shift+Enter and closes it with Escape', () => {
+    const composer = contentComposer();
+    startPicker();
+    openFromFab();
+    const { input, zoom } = ui();
+
+    key(input, 'ArrowDown');
+    key(input, 'Enter', { shiftKey: true });
+    expect(zoom.hidden).toBe(false);
+    expect(zoom.querySelector('.zoom-code')?.textContent).toBe('zero');
+
+    key(input, 'Escape');
+    expect(zoom.hidden).toBe(true);
+    expect(ui().panel.hidden).toBe(false);
+    expect(ui().shadow.activeElement).toBe(input);
+    expect(composer.textContent).toBe('AB');
+  });
+
+  it('inserts the first match when Enter follows a search with no selection', () => {
+    const composer = contentComposer();
+    startPicker();
+    openFromFab();
+    const { input } = ui();
+
+    key(input, 'Enter');
+    expect(composer.textContent).toBe('AB');
+
+    input.value = 'thr';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    key(input, 'Enter');
+    expect(composer.textContent).toBe('ABthree ');
+  });
+
+  it('shows the search keyboard ring only after keyboard intent', () => {
+    contentComposer();
+    startPicker();
+    openFromFab();
+    const { input } = ui();
+
+    input.focus();
+    expect(input.classList.contains('kbd')).toBe(false);
+
+    key(input, 'a');
+    input.blur();
+    input.focus();
+    expect(input.classList.contains('kbd')).toBe(true);
+
+    input.dispatchEvent(new Event('pointerdown', { bubbles: true, composed: true }));
+    input.blur();
+    input.focus();
+    expect(input.classList.contains('kbd')).toBe(false);
+  });
+
+  it('announces the result count and inserted emote', () => {
+    contentComposer();
+    startPicker();
+    openFromFab();
+    const { input, shadow } = ui();
+    const status = shadow.querySelector('[role="status"]');
+
+    expect(status?.textContent).toBe('7 emotes');
+    input.value = 'two';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(status?.textContent).toBe('1 emote');
+    key(input, 'ArrowDown');
+    key(input, 'Enter');
+    expect(status?.textContent).toBe('Inserted two');
+  });
+
+  it('filters through a precomputed lowercase index', () => {
+    contentComposer();
+    startPicker(descriptor(), manyEmotes(200));
+    openFromFab();
+    const lower = vi.spyOn(String.prototype, 'toLowerCase');
+    lower.mockClear();
+    const { input } = ui();
+
+    input.value = 'emote199';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    const lowerCodedEmoteCalls = lower.mock.contexts.filter(
+      (value) => typeof value === 'string' && value.startsWith('Emote'),
+    );
+
+    expect(lowerCodedEmoteCalls).toHaveLength(0);
+    expect(cells()).toHaveLength(1);
+    expect(cells()[0]?.getAttribute('aria-label')).toBe('Emote199');
+  });
+
+  it('debounces search rendering on large sets', () => {
+    vi.useFakeTimers();
+    contentComposer();
+    startPicker(descriptor(), manyEmotes(600));
+    openFromFab();
+    const { input, shadow } = ui();
+    const status = shadow.querySelector('[role="status"]');
+    expect(status?.textContent).toBe('Showing first 500 of 600 emotes. Refine the search.');
+
+    input.value = 'emote599';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(status?.textContent).toBe('Showing first 500 of 600 emotes. Refine the search.');
+
+    vi.advanceTimersByTime(100);
+    expect(status?.textContent).toBe('1 emote');
+    expect(cells()).toHaveLength(1);
+  });
+
+  it('applies a pending debounced search before Enter inserts', () => {
+    vi.useFakeTimers();
+    const composer = contentComposer();
+    startPicker(descriptor(), manyEmotes(600));
+    openFromFab();
+    const { input } = ui();
+
+    input.value = 'emote599';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    key(input, 'Enter');
+
+    expect(composer.textContent).toBe('ABEmote599 ');
+  });
+
+  it('does not flush the debounce on ordinary key presses', () => {
+    vi.useFakeTimers();
+    contentComposer();
+    startPicker(descriptor(), manyEmotes(600));
+    openFromFab();
+    const { input, shadow } = ui();
+    const status = shadow.querySelector('[role="status"]');
+    expect(status?.textContent).toBe('Showing first 500 of 600 emotes. Refine the search.');
+
+    input.value = 'emote5';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    key(input, 'x');
+
+    expect(status?.textContent).toBe('Showing first 500 of 600 emotes. Refine the search.');
+    vi.advanceTimersByTime(100);
+    expect(status?.textContent).toBe('111 emotes');
+  });
+
+  it('reuses one intersection observer across grid renders', () => {
+    const observers: Array<{ disconnect: ReturnType<typeof vi.fn> }> = [];
+    class IntersectionObserverMock {
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = vi.fn();
+      constructor() {
+        observers.push(this);
+      }
+    }
+    vi.stubGlobal('IntersectionObserver', IntersectionObserverMock);
+    contentComposer();
+    startPicker(descriptor('contenteditable', true));
+    openFromFab();
+    const { input } = ui();
+
+    input.value = 'z';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.value = 'ze';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(observers).toHaveLength(1);
   });
 });
 

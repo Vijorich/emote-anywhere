@@ -33,8 +33,22 @@ export function createDefaultState(): AppState {
 }
 
 let writeQueue: Promise<void> = Promise.resolve();
+let cachedState: AppState | null = null;
+
+/** Background reads state on nearly every RPC; drop the cache on writes from other contexts. */
+export function onStateStorageChanged(changes: Record<string, unknown>, area: string): void {
+  if (area === 'local' && changes[STATE_KEY]) cachedState = null;
+}
+
+browser?.storage?.onChanged?.addListener(onStateStorageChanged);
+
+/** Clears the memoized state. Used between tests and after a failed write. */
+export function resetStateCache(): void {
+  cachedState = null;
+}
 
 export async function getState(): Promise<AppState> {
+  if (cachedState) return cachedState;
   const defaults = createDefaultState();
   let stored: unknown;
   try {
@@ -45,14 +59,14 @@ export async function getState(): Promise<AppState> {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Could not read extension state: ${message}`);
   }
-  if (!stored) return defaults;
-  return normalizeState(stored, defaults);
+  cachedState = stored ? normalizeState(stored, defaults) : defaults;
+  return cachedState;
 }
 
 function assertStateSize(state: AppState): void {
   const bytes = new TextEncoder().encode(JSON.stringify(state)).byteLength;
   if (bytes > MAX_STATE_BYTES) {
-    throw new Error('Extension state is too large. Remove some custom sets or bindings.');
+    throw new Error('Extension state is too large. Remove some custom sets or chat sets.');
   }
 }
 
@@ -60,11 +74,17 @@ export function mutateState<T>(
   change: (state: AppState) => T | Promise<T>,
 ): Promise<{ state: AppState; result: T }> {
   const run = writeQueue.then(async () => {
-    const state = await getState();
-    const result = await change(state);
-    assertStateSize(state);
-    await browser.storage.local.set({ [STATE_KEY]: state });
-    return { state, result };
+    try {
+      const state = await getState();
+      const result = await change(state);
+      assertStateSize(state);
+      await browser.storage.local.set({ [STATE_KEY]: state });
+      return { state, result };
+    } catch (error) {
+      // The mutation may have changed the memoized object before it failed.
+      resetStateCache();
+      throw error;
+    }
   });
   writeQueue = run.then(
     () => undefined,

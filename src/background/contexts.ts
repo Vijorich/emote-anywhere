@@ -110,7 +110,7 @@ export async function listFrameContexts(tabId: number): Promise<FrameContext[]> 
     .sort((left, right) => right.updatedAt - left.updatedAt);
 }
 
-/** Test hook. */
+/** Clears all frame contexts between tests. */
 export async function clearFrameContexts(): Promise<void> {
   await hydrate();
   contexts.clear();

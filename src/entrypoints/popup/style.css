@@ -3,24 +3,25 @@
 html,
 body {
   width: 380px;
+  max-width: 100vw;
   background: var(--frame);
 }
 
 body {
-  font-size: 13px;
+  font-size: var(--fs-body-compact);
 }
 
 #app {
   display: grid;
-  gap: 10px;
-  max-height: 600px;
-  padding: 12px;
+  gap: var(--space-3);
+  max-height: min(600px, 100dvh);
+  padding: var(--space-3);
   overflow-y: auto;
 }
 
 .popup-head {
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
   align-items: center;
   justify-content: space-between;
   min-height: 32px;
@@ -41,9 +42,10 @@ body {
 
 .popup-title {
   overflow: hidden;
+  font-family: var(--font-display);
   font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 900;
+  letter-spacing: -0.02em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -52,22 +54,22 @@ body {
   max-width: 160px;
   overflow: hidden;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-small);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .panel {
-  padding: 14px;
+  padding: var(--space-4);
 }
 
 .panel-head {
-  margin-bottom: 10px;
+  margin-bottom: var(--space-3);
 }
 
 .panel-head h2,
 .panel h2 {
-  font-size: 15px;
+  font-size: var(--fs-section-compact);
   font-weight: 600;
 }
 
@@ -76,6 +78,7 @@ body {
   margin-top: 2px;
   color: var(--muted);
   font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .section-note {
@@ -89,10 +92,15 @@ body {
   justify-content: space-between;
 }
 
+.plugin-head > div {
+  min-width: 0;
+}
+
 .plugin-name {
-  font-size: 15px;
+  font-size: var(--fs-section-compact);
   font-weight: 600;
   letter-spacing: -0.005em;
+  overflow-wrap: anywhere;
 }
 
 .plugin-head .switch {
@@ -109,9 +117,10 @@ body {
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--rule);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--raised);
   color: var(--muted);
   font-size: 13px;
 }
@@ -125,6 +134,7 @@ body {
 }
 
 .status.ok {
+  background: var(--accent-soft);
   color: var(--text);
 }
 
@@ -132,65 +142,49 @@ body {
   background: var(--accent);
 }
 
+.status.warn {
+  background: var(--warning-soft);
+  color: var(--text);
+}
+
+.status.warn::before {
+  background: var(--warning);
+}
+
 .status .btn {
   margin-left: auto;
+  background: var(--sheet);
+}
+
+.status .btn:hover {
+  background: var(--active);
 }
 
 .inline-form {
   flex-wrap: nowrap;
-  margin-top: 10px;
+  margin-top: var(--space-3);
 }
 
 .inline-form .input {
   flex: 1 1 auto;
-  height: 34px;
-  font-size: 13px;
+  min-height: 34px;
+  font-size: var(--fs-body-compact);
 }
 
 .inline-form .btn {
   flex: none;
-  height: 34px;
+  min-height: 34px;
 }
 
 .chip {
   max-width: 100%;
-  font-family: var(--font);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .chip-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.global-list {
-  display: grid;
-}
-
-.global-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 30px;
-}
-
-.global-row + .global-row {
-  border-top: 1px solid var(--rule);
-}
-
-.global-row .row-title {
-  font-size: 13px;
-  font-weight: 400;
-}
-
-.range-row {
-  margin-top: 4px;
-}
-
-.range-row input[type='range'] {
-  max-width: none;
 }
 
 .popup-foot {
@@ -203,8 +197,8 @@ body {
 
 .empty-panel {
   display: grid;
-  gap: 8px;
-  padding: 16px;
+  gap: var(--space-2);
+  padding: var(--space-4);
 }
 
 .empty-panel .form-actions {
@@ -213,11 +207,20 @@ body {
 
 .panel .section-note + .inline-form,
 .panel .chips + .inline-form {
-  margin-top: 12px;
+  margin-top: var(--space-3);
 }
 
-@media (pointer: coarse) {
+@media (any-pointer: coarse) {
   .plugin-head .switch {
     min-width: 44px;
+  }
+
+  .inline-form .input,
+  .inline-form .btn {
+    min-height: 44px;
+  }
+
+  .inline-form .input {
+    font-size: 16px;
   }
 }

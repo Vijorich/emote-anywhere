@@ -125,6 +125,22 @@ describe('chat state synchronization filter', () => {
     expect(check((state) => void (state.plugins.disabled!.descriptor.priority = 50))).toBe(false);
   });
 
+  it('compares large custom sets without stringifying them', () => {
+    const before = makeState();
+    before.customSets[0]!.emotes = Array.from({ length: 2000 }, (_, index) => ({
+      code: `emote${index}`,
+      url: `https://cdn.test/${index}.png`,
+    }));
+    const after = structuredClone(before);
+    const stringify = vi.spyOn(JSON, 'stringify');
+
+    expect(shouldSyncStateChange({ oldValue: before, newValue: after }, URL, context)).toBe(false);
+    const stringifiedSets = stringify.mock.calls.some(
+      ([value]) => value === before.customSets || value === after.customSets,
+    );
+    expect(stringifiedSets).toBe(false);
+  });
+
   it('syncs only for the current plugin and channel binding', () => {
     expect(check((state) => void (state.bindings['current|chan']!.sets = ['new-set']))).toBe(true);
     expect(check((state) => void delete state.bindings['current|chan'])).toBe(true);

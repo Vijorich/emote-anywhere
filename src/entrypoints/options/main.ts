@@ -1,41 +1,41 @@
 import './style.css';
 import { browser } from 'wxt/browser';
-import { PROJECT_URL } from '../../core/config';
 import { rpc } from '../../core/rpc';
 import type { AppSettings, AppState, InstalledPlugin } from '../../core/types';
 import { brand } from '../../ui/components';
-import { h, link } from '../../ui/dom';
+import { h } from '../../ui/dom';
+import { trackFocusModality } from '../../ui/focus-modality';
 import type { OptionsContext } from './context';
 import { bindingsView } from './views/bindings';
 import { helpView } from './views/help';
-import { overviewView } from './views/overview';
 import { settingsView } from './views/settings';
 import { sourcesView } from './views/sources';
 
-type ViewId = 'overview' | 'sources' | 'bindings' | 'settings' | 'help';
+type ViewId = 'sources' | 'bindings' | 'settings' | 'help';
 
 const appElement = document.querySelector<HTMLElement>('#app');
 if (!appElement) throw new Error('Missing #app');
 const app: HTMLElement = appElement;
+trackFocusModality();
+const version = browser.runtime.getManifest().version;
 
 let state: AppState | null = null;
-let view: ViewId = 'overview';
+let view: ViewId = 'sources';
 let notice: { text: string; kind: 'ok' | 'error' } | null = null;
 let noticeTimer: number | null = null;
 let refreshTimer: number | null = null;
 let pendingRefresh = false;
 
 const VIEWS: Array<{ id: ViewId; label: string }> = [
-  { id: 'overview', label: 'Overview' },
   { id: 'sources', label: 'Sources' },
-  { id: 'bindings', label: 'Bindings' },
+  { id: 'bindings', label: 'Chat sets' },
   { id: 'settings', label: 'Settings' },
   { id: 'help', label: 'Help' },
 ];
 
 function parseHash(): void {
-  const [name = 'overview'] = location.hash.replace(/^#/, '').split('/');
-  view = (VIEWS.some((item) => item.id === name) ? name : 'overview') as ViewId;
+  const [name = 'sources'] = location.hash.replace(/^#/, '').split('/');
+  view = (VIEWS.some((item) => item.id === name) ? name : 'sources') as ViewId;
 }
 
 function show(text: string, kind: 'ok' | 'error' = 'ok'): void {
@@ -109,15 +109,18 @@ function togglePlugin(plugin: InstalledPlugin, enabled: boolean): void {
       if (enabled) {
         const granted = await browser.permissions.request({ origins: plugin.descriptor.matches });
         if (!granted) {
-          show('Host permission was not granted.', 'error');
+          show(
+            'Site access was not granted. Turn the plugin on again and allow access to its sites.',
+            'error',
+          );
           render();
           return;
         }
         await rpc('plugin/enable', { key: plugin.key });
-        await refresh(`${plugin.descriptor.name} enabled`);
+        await refresh();
       } else {
         await rpc('plugin/disable', { key: plugin.key });
-        await refresh(`${plugin.descriptor.name} disabled`);
+        await refresh();
       }
     } catch (error) {
       show(error instanceof Error ? error.message : String(error), 'error');
@@ -130,7 +133,7 @@ function noticeBanner(): HTMLElement | null {
   if (!notice) return null;
   return h('div', {
     class: notice.kind === 'error' ? 'banner error' : 'banner',
-    role: 'status',
+    role: notice.kind === 'error' ? 'alert' : 'status',
     'data-notice': 'true',
     text: notice.text,
   });
@@ -150,7 +153,7 @@ function updateNotice(): void {
 function navLinks(idPrefix = 'nav'): HTMLElement {
   return h(
     'nav',
-    { class: 'nav', 'aria-label': 'Settings sections' },
+    { class: 'nav', 'aria-label': 'Sections' },
     ...VIEWS.map((item) =>
       h(
         'a',
@@ -167,7 +170,11 @@ function navLinks(idPrefix = 'nav'): HTMLElement {
 }
 
 function mobileDialog(): HTMLDialogElement {
-  const dialog = h('dialog', { class: 'nav-dialog', 'aria-label': 'Sections' });
+  const dialog = h('dialog', {
+    class: 'nav-dialog',
+    id: 'nav-dialog',
+    'aria-label': 'Sections',
+  });
   dialog.append(
     h(
       'div',
@@ -181,9 +188,12 @@ function mobileDialog(): HTMLDialogElement {
       }),
     ),
     navLinks('mobile-nav'),
+    h('p', { class: 'dialog-version', text: `v${version}` }),
   );
   dialog.addEventListener('click', (event) => {
-    if ((event.target as Element).closest('a')) dialog.close();
+    if (event.target === dialog || (event.target as Element).closest('a')) {
+      dialog.close();
+    }
   });
   return dialog;
 }
@@ -194,19 +204,11 @@ function stateFallbackView(title: string): HTMLElement {
     'main',
     { class: 'view' },
     noticeBanner(),
-    h(
-      'header',
-      { class: 'view-head' },
-      h('h1', { text: title }),
-      h('p', {
-        class: 'lede',
-        text: failed ? 'The extension state could not be loaded.' : 'Loading extension state…',
-      }),
-    ),
+    h('header', { class: 'view-head' }, h('h1', { text: title })),
     h('div', {
       class: 'empty',
       role: 'status',
-      text: failed ? 'Settings are unavailable.' : 'Loading settings…',
+      text: failed ? 'Could not load settings.' : 'Loading…',
     }),
     failed
       ? h(
@@ -240,35 +242,58 @@ const optionsContext: OptionsContext = {
   togglePlugin,
 };
 
+function focusHeading(): void {
+  const heading = app.querySelector<HTMLElement>('.view h1');
+  heading?.setAttribute('tabindex', '-1');
+  heading?.focus();
+}
+
 function render(): void {
+  const focusKey = (document.activeElement as HTMLElement | null)?.dataset.focusKey ?? null;
   const dialog = mobileDialog();
-  const title = VIEWS.find((item) => item.id === view)?.label ?? 'Overview';
+  const title = VIEWS.find((item) => item.id === view)?.label ?? 'Sources';
+  const menuButton = h('button', {
+    class: 'btn quiet menu-button',
+    type: 'button',
+    text: 'Menu',
+    'aria-haspopup': 'dialog',
+    'aria-controls': 'nav-dialog',
+    'aria-expanded': 'false',
+    onclick: () => {
+      menuButton.setAttribute('aria-expanded', 'true');
+      dialog.addEventListener(
+        'close',
+        () => menuButton.setAttribute('aria-expanded', 'false'),
+        { once: true },
+      );
+      dialog.showModal();
+    },
+  });
   const sidebar = h(
     'aside',
     { class: 'sidebar', 'aria-label': 'Options sidebar' },
     brand(),
     navLinks(),
-    h(
-      'div',
-      { class: 'sidebar-foot' },
-      h('span', { text: `v${browser.runtime.getManifest().version}` }),
-      link(PROJECT_URL, 'Project page'),
-    ),
+    h('div', { class: 'sidebar-foot' }, h('span', { class: 'version', text: `v${version}` })),
   );
 
   const content = !state
     ? stateFallbackView(title)
-    : view === 'sources'
-      ? sourcesView(state, optionsContext)
-      : view === 'bindings'
-        ? bindingsView(state, optionsContext)
-        : view === 'settings'
-          ? settingsView(state, optionsContext)
-          : view === 'help'
-            ? helpView(state, optionsContext)
-            : overviewView(state, optionsContext);
+    : view === 'bindings'
+      ? bindingsView(state, optionsContext)
+      : view === 'settings'
+        ? settingsView(state, optionsContext)
+        : view === 'help'
+          ? helpView()
+          : sourcesView(state, optionsContext);
 
   app.replaceChildren(
+    h('button', {
+      class: 'btn primary skip-link',
+      type: 'button',
+      text: 'Skip to content',
+      onclick: () => focusHeading(),
+    }),
     h(
       'div',
       { class: 'app' },
@@ -279,25 +304,8 @@ function render(): void {
         h(
           'header',
           { class: 'topbar' },
-          h('button', {
-            class: 'btn quiet menu-button',
-            type: 'button',
-            text: 'Menu',
-            'aria-haspopup': 'dialog',
-            onclick: () => dialog.showModal(),
-          }),
-          h(
-            'div',
-            { class: 'crumb' },
-            h('span', { text: 'Emote Anywhere' }),
-            h('span', { 'aria-hidden': 'true', text: '/' }),
-            h('strong', { text: title }),
-          ),
-          h(
-            'div',
-            { class: 'topbar-actions' },
-            h('span', { class: 'save-state', role: 'status', text: 'Changes save automatically' }),
-          ),
+          brand(),
+          menuButton,
         ),
         h('div', { class: 'sheet' }, content),
       ),
@@ -306,15 +314,20 @@ function render(): void {
   );
 
   document.title = `${title} · Emote Anywhere`;
+
+  if (focusKey) {
+    const target = Array.from(
+      app.querySelectorAll<HTMLElement>('[data-focus-key]'),
+    ).find((element) => element.dataset.focusKey === focusKey);
+    target?.focus();
+  }
 }
 
 window.addEventListener('hashchange', () => {
   parseHash();
   window.scrollTo({ top: 0 });
   render();
-  const heading = app.querySelector<HTMLElement>('.view h1');
-  heading?.setAttribute('tabindex', '-1');
-  heading?.focus();
+  focusHeading();
 });
 
 browser.storage.onChanged.addListener((changes, area) => {

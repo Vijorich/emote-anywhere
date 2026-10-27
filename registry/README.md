@@ -23,7 +23,7 @@ https://vijorich.github.io/emote-anywhere/index.json
   `*://*/*` for a single-site adapter.
 - Prefer stable attributes (`data-*`, `aria-*`, ids, roles) over hashed CSS classes.
 - List 1-3 fallback selectors per field; sites change.
-- `channel` must identify the conversation so per-chat 7TV bindings do not leak
+- `channel` must identify the conversation so per-chat 7TV sets do not leak
   between chats.
 - No remote code, no `javascript:` URLs, no tracking image hosts.
 - One plugin per site unless the site has genuinely different chat surfaces.

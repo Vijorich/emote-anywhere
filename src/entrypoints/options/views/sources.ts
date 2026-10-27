@@ -9,6 +9,7 @@ import type {
 import { field, pill, plural, switchRow } from '../../../ui/components';
 import { h, link } from '../../../ui/dom';
 import type { OptionsContext } from '../context';
+import { clearFieldError, markFieldError, withBusy } from '../shared';
 
 export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement {
   const { settings, customSets } = current;
@@ -33,9 +34,27 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
             h(
               'div',
               { class: 'row-actions' },
+              h('button', {
+                class: 'btn danger tiny',
+                type: 'button',
+                text: 'Remove',
+                onclick: (event: Event) => {
+                  const button = event.currentTarget as HTMLButtonElement;
+                  if (!window.confirm(`Remove custom set "${set.name}"?`)) return;
+                  void withBusy(button, 'Removing…', async () => {
+                    try {
+                      await rpc('set/remove', { id: set.id });
+                      await ctx.refresh('Set removed');
+                    } catch (error) {
+                      ctx.show(error instanceof Error ? error.message : String(error), 'error');
+                    }
+                  });
+                },
+              }),
               switchRow({
                 title: '',
                 ariaLabel: `Enable ${set.name}`,
+                focusKey: `custom-set-${set.id}`,
                 checked: set.enabled,
                 onChange: (checked) => {
                   void rpc('set/toggle', { id: set.id, enabled: checked })
@@ -46,22 +65,11 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
                     });
                 },
               }),
-              h('button', {
-                class: 'btn danger tiny',
-                type: 'button',
-                text: 'Remove',
-                onclick: () => {
-                  if (!window.confirm(`Remove custom set "${set.name}"?`)) return;
-                  void rpc('set/remove', { id: set.id })
-                    .then(() => ctx.refresh('Set removed'))
-                    .catch((error: unknown) => ctx.show(String(error), 'error'));
-                },
-              }),
             ),
           ),
         ),
       )
-    : h('div', { class: 'empty' }, 'No custom sets. A set is a JSON list of code and image URL pairs.');
+    : h('div', { class: 'empty' }, 'No custom sets yet. Add one below with Add custom set.');
 
   const nameInput = h('input', { class: 'input', type: 'text', placeholder: 'Set name' });
   const jsonInput = h('textarea', {
@@ -72,52 +80,43 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
 
   const registryPanels = current.registries.length
     ? current.registries.map((registry) => registryPanel(current, registry, ctx))
-    : [h('div', { class: 'empty' }, 'No registries. Add one below.')];
+    : [h('div', { class: 'empty' }, 'No registries yet. Add one below.')];
 
   return h(
     'main',
     { class: 'view' },
     ctx.noticeBanner(),
-    h(
-      'header',
-      { class: 'view-head' },
-      h('h1', { text: 'Sources' }),
-      h('p', {
-        class: 'lede',
-        text: 'Provider globals, custom sets and the registries that teach the extension where chats live.',
-      }),
-    ),
+    h('header', { class: 'view-head' }, h('h1', { text: 'Sources' })),
     h(
       'section',
       { class: 'section' },
       h(
         'div',
+        { class: 'section-head' },
+        h('h2', { text: 'Providers' }),
+      ),
+      h(
+        'div',
         { class: 'panel' },
-        h(
-          'div',
-          { class: 'panel-head' },
-          h('div', {}, h('h2', { text: 'Global providers' }), h('p', { text: 'Fills every chat after bindings and custom sets.' })),
-          pill(`${[settings.providers.sevenTv, settings.providers.bttv, settings.providers.ffz].filter(Boolean).length} on`, 'ok'),
-        ),
         switchRow({
-          title: '7TV global',
-          description: 'The 7TV global emote set.',
+          title: '7TV',
+          focusKey: 'provider-sevenTv',
           checked: settings.providers.sevenTv,
           onChange: (checked) => {
             ctx.updateSettings({ providers: { ...settings.providers, sevenTv: checked } });
           },
         }),
         switchRow({
-          title: 'BTTV global',
-          description: 'BetterTTV global emotes.',
+          title: 'BTTV',
+          focusKey: 'provider-bttv',
           checked: settings.providers.bttv,
           onChange: (checked) => {
             ctx.updateSettings({ providers: { ...settings.providers, bttv: checked } });
           },
         }),
         switchRow({
-          title: 'FFZ global',
-          description: 'FrankerFaceZ global emotes.',
+          title: 'FFZ',
+          focusKey: 'provider-ffz',
           checked: settings.providers.ffz,
           onChange: (checked) => {
             ctx.updateSettings({ providers: { ...settings.providers, ffz: checked } });
@@ -156,10 +155,16 @@ function addCustomSetForm(
   json: HTMLTextAreaElement,
   ctx: OptionsContext,
 ): HTMLElement {
+  const fail = (message: string, target: HTMLElement): void => {
+    markFieldError(target as HTMLInputElement | HTMLTextAreaElement, message);
+    ctx.show(message, 'error');
+  };
+  name.addEventListener('input', () => clearFieldError(name));
+  json.addEventListener('input', () => clearFieldError(json));
   return h(
     'details',
     { class: 'disclosure' },
-    h('summary', { text: 'Add a custom set' }),
+    h('summary', { text: 'Add custom set' }),
     h(
       'form',
       {
@@ -174,27 +179,39 @@ function addCustomSetForm(
               const parsedName =
                 Array.isArray(parsed) ? '' : typeof parsed.name === 'string' ? parsed.name : '';
               const emotes = Array.isArray(parsed) ? parsed : parsed.emotes;
-              if (!Array.isArray(emotes)) throw new Error('Expected an "emotes" array');
+              if (!Array.isArray(emotes)) {
+                fail('The set needs an emotes array.', json);
+                return;
+              }
               const finalName = name.value.trim() || parsedName;
-              if (!finalName) throw new Error('Set name is required');
+              if (!finalName) {
+                fail('Enter a set name.', name);
+                return;
+              }
               void rpc('set/add', { name: finalName, emotes: emotes as CustomEmote[] })
                 .then(() => {
                   name.value = '';
                   json.value = '';
-                  return ctx.refresh('Custom set added');
+                  return ctx.refresh('Set added');
                 })
-                .catch((error: unknown) => ctx.show(String(error), 'error'));
+                .catch((error: unknown) => {
+                  fail(error instanceof Error ? error.message : String(error), json);
+                });
             } catch (error) {
-              ctx.show(error instanceof Error ? error.message : String(error), 'error');
+              fail(error instanceof Error ? error.message : String(error), json);
             }
           },
         },
       },
+      h('p', {
+        class: 'section-note',
+        text: 'Paste a JSON object with an emotes array. Each emote needs a code and a URL. The Name field above overrides the name in the JSON.',
+      }),
       field('Name', name),
       h(
         'label',
         { class: 'field' },
-        h('span', { text: 'JSON' }),
+        h('span', { text: 'Emotes (JSON)' }),
         json,
       ),
       h(
@@ -214,6 +231,21 @@ function registryPanel(
   const plugins = Object.values(current.plugins).filter(
     (plugin) => plugin.registryId === registry.id,
   );
+  const refreshButton = h('button', {
+    class: 'btn tiny',
+    type: 'button',
+    text: 'Refresh',
+    onclick: () => {
+      void withBusy(refreshButton, 'Refreshing…', async () => {
+        try {
+          await rpc<Record<string, string>>('registry/refresh', { id: registry.id });
+          await ctx.refresh('Refreshed');
+        } catch (error) {
+          ctx.show(error instanceof Error ? error.message : String(error), 'error');
+        }
+      });
+    },
+  });
   return h(
     'div',
     { class: 'panel' },
@@ -226,46 +258,40 @@ function registryPanel(
         h('h2', { text: registry.name }),
         h(
           'p',
-          { class: 'mono' },
+          { class: 'mono', title: registry.url },
           h('a', {
             href: registry.url,
             target: '_blank',
             rel: 'noreferrer',
-            text: registry.url,
+            // Break the long URL at its slashes instead of inside a word.
+            text: registry.url.replaceAll('/', '/\u200B'),
           }),
         ),
         h('p', {
-          text: `${plural(registry.pluginCount ?? plugins.length, 'plugin')} · ${
-            registry.lastCheckedAt
-              ? `checked ${new Date(registry.lastCheckedAt).toLocaleTimeString()}`
-              : 'not checked yet'
-          }`,
+          text: plural(registry.pluginCount ?? plugins.length, 'plugin'),
         }),
       ),
       h(
         'div',
         { class: 'row-actions' },
-        h('button', {
-          class: 'btn tiny',
-          type: 'button',
-          text: 'Refresh',
-          onclick: () => {
-            void rpc<Record<string, string>>('registry/refresh', { id: registry.id })
-              .then(() => ctx.refresh('Registry refreshed'))
-              .catch((error: unknown) => ctx.show(String(error), 'error'));
-          },
-        }),
+        refreshButton,
         registry.builtin
           ? null
           : h('button', {
               class: 'btn danger tiny',
               type: 'button',
               text: 'Remove',
-              onclick: () => {
+              onclick: (event: Event) => {
+                const button = event.currentTarget as HTMLButtonElement;
                 if (!window.confirm(`Remove registry "${registry.name}" and its plugins?`)) return;
-                void rpc('registry/remove', { id: registry.id })
-                  .then(() => ctx.refresh('Registry removed'))
-                  .catch((error: unknown) => ctx.show(String(error), 'error'));
+                void withBusy(button, 'Removing…', async () => {
+                  try {
+                    await rpc('registry/remove', { id: registry.id });
+                    await ctx.refresh('Registry removed');
+                  } catch (error) {
+                    ctx.show(error instanceof Error ? error.message : String(error), 'error');
+                  }
+                });
               },
             }),
       ),
@@ -273,81 +299,99 @@ function registryPanel(
     registry.lastError ? h('div', { class: 'banner error', text: registry.lastError }) : null,
     plugins.length
       ? h('div', { class: 'rows' }, ...plugins.map((plugin) => pluginRow(plugin, ctx)))
-      : h('div', { class: 'empty' }, 'No plugins in this registry yet.'),
+      : h(
+          'div',
+          { class: 'empty' },
+          'No plugins in this registry. Refresh it above.',
+        ),
   );
+}
+
+function removePlugin(
+  button: HTMLButtonElement,
+  plugin: InstalledPlugin,
+  ctx: OptionsContext,
+  close?: () => void,
+): void {
+  if (!window.confirm(`Remove ${plugin.descriptor.name}?`)) return;
+  close?.();
+  void withBusy(button, 'Removing…', async () => {
+    try {
+      await rpc('plugin/remove', { key: plugin.key });
+      await ctx.refresh('Plugin removed');
+    } catch (error) {
+      ctx.show(error instanceof Error ? error.message : String(error), 'error');
+    }
+  });
 }
 
 function pluginRow(plugin: InstalledPlugin, ctx: OptionsContext): HTMLElement {
   const descriptor = plugin.descriptor;
-  const permission = h('span', { class: 'pill', text: 'Checking access' });
+  const permission = h('span', { class: 'pill', text: 'Checking…' });
   void browser.permissions
     .contains({ origins: descriptor.matches })
     .then((granted) => {
-      permission.textContent = granted ? 'Access granted' : 'Permission needed';
+      permission.textContent = granted ? 'Allowed' : 'No site access';
       permission.className = granted ? 'pill ok' : 'pill warn';
     })
-    .catch(() => permission.remove());
+    .catch(() => {
+      permission.textContent = 'Access unknown';
+      permission.className = 'pill';
+    });
 
-  const hosts = descriptor.matches
-    .slice(0, 3)
-    .map((pattern) => h('span', { class: 'chip', text: pattern }));
-  if (descriptor.matches.length > 3) {
-    hosts.push(h('span', { class: 'chip', text: `+${descriptor.matches.length - 3}` }));
-  }
-
-  const details = pluginDetails(descriptor);
+  const details = pluginDetails(plugin, ctx);
+  const remove = h('button', {
+    class: 'btn danger tiny',
+    type: 'button',
+    text: 'Remove',
+  });
+  remove.addEventListener('click', () => removePlugin(remove, plugin, ctx));
   return h(
     'div',
     { class: 'row plugin-row' },
+    h('button', {
+      class: 'plugin-details',
+      type: 'button',
+      'aria-label': `Details for ${descriptor.name}`,
+      'aria-haspopup': 'dialog',
+      onclick: () => details.showModal(),
+    }),
     h(
       'div',
       { class: 'row-main' },
       h(
-        'button',
-        {
-          class: 'row-copy plugin-details',
-          type: 'button',
-          title: `Full details for ${descriptor.name}`,
-          onclick: () => details.showModal(),
-        },
+        'span',
+        { class: 'row-copy' },
         h(
           'span',
           { class: 'row-title' },
-          descriptor.name,
-          h('span', { class: 'muted small', text: ` v${descriptor.version}` }),
+          h('span', { class: 'row-name', text: descriptor.name }),
+          permission,
         ),
-        descriptor.description
-          ? h('span', { class: 'row-sub', text: descriptor.description })
-          : null,
-        h('span', { class: 'chips' }, ...hosts, permission),
+        h('span', {
+          class: 'row-sub',
+          text: `v${descriptor.version} · ${descriptor.description}`,
+        }),
       ),
     ),
     h(
       'div',
       { class: 'row-actions' },
+      remove,
       switchRow({
         title: '',
         ariaLabel: `Enable ${descriptor.name}`,
+        focusKey: `plugin-${plugin.key}`,
         checked: plugin.enabled,
         onChange: (checked) => ctx.togglePlugin(plugin, checked),
-      }),
-      h('button', {
-        class: 'btn danger tiny',
-        type: 'button',
-        text: 'Remove',
-        onclick: () => {
-          if (!window.confirm(`Remove ${descriptor.name}?`)) return;
-          void rpc('plugin/remove', { key: plugin.key })
-            .then(() => ctx.refresh('Plugin removed'))
-            .catch((error: unknown) => ctx.show(String(error), 'error'));
-        },
       }),
     ),
     details,
   );
 }
 
-function pluginDetails(descriptor: InstalledPlugin['descriptor']): HTMLDialogElement {
+function pluginDetails(plugin: InstalledPlugin, ctx: OptionsContext): HTMLDialogElement {
+  const descriptor = plugin.descriptor;
   const dialog = h('dialog', {
     class: 'plugin-dialog',
     'aria-label': `Details for ${descriptor.name}`,
@@ -369,11 +413,19 @@ function pluginDetails(descriptor: InstalledPlugin['descriptor']): HTMLDialogEle
           descriptor.authors.join(', '),
         )
       : null;
+  const remove = h('button', {
+    class: 'btn danger',
+    type: 'button',
+    text: 'Remove',
+  });
+  remove.addEventListener('click', () =>
+    removePlugin(remove, plugin, ctx, () => dialog.close()),
+  );
 
   dialog.append(
     h(
       'div',
-      { class: 'row plugin-dialog-head' },
+      { class: 'plugin-dialog-head' },
       h(
         'div',
         {},
@@ -390,19 +442,30 @@ function pluginDetails(descriptor: InstalledPlugin['descriptor']): HTMLDialogEle
         onclick: () => dialog.close(),
       }),
     ),
-    h('p', {
-      class: descriptor.description ? 'plugin-dialog-description' : 'section-note',
-      text: descriptor.description ?? 'No description provided.',
-    }),
+    descriptor.description
+      ? h('p', { class: 'plugin-dialog-description', text: descriptor.description })
+      : '',
     h('div', {}, authors, home),
-    h('p', {
-      class: 'field-label',
-      text: `Sites (${plural(descriptor.matches.length, 'pattern')})`,
-    }),
+    h('p', { class: 'field-label', text: 'Sites' }),
     h(
       'div',
       { class: 'chips' },
       ...descriptor.matches.map((pattern) => h('span', { class: 'chip', text: pattern })),
+    ),
+    h(
+      'div',
+      { class: 'plugin-dialog-actions' },
+      remove,
+      switchRow({
+        title: 'Enabled',
+        ariaLabel: `Enable ${descriptor.name}`,
+        focusKey: `dialog-plugin-${plugin.key}`,
+        checked: plugin.enabled,
+        onChange: (checked) => {
+          dialog.close();
+          ctx.togglePlugin(plugin, checked);
+        },
+      }),
     ),
   );
   dialog.addEventListener('click', (event) => {
@@ -412,15 +475,37 @@ function pluginDetails(descriptor: InstalledPlugin['descriptor']): HTMLDialogEle
 }
 
 function addRegistryForm(ctx: OptionsContext): HTMLElement {
-  const name = h('input', { class: 'input', type: 'text', placeholder: 'Registry name (optional)' });
+  const name = h('input', {
+    class: 'input',
+    type: 'text',
+    placeholder: 'My registry',
+    'aria-label': 'Registry name',
+  });
   const url = h('input', {
     class: 'input',
     type: 'text',
-    placeholder: 'https://raw.githubusercontent.com/you/repo/main/index.json',
+    placeholder: 'https://example.com/index.json',
+    'aria-label': 'Registry URL',
+    required: true,
   });
+  const fail = (message: string): void => {
+    markFieldError(url, message);
+    ctx.show(message, 'error');
+  };
+  url.addEventListener('input', () => clearFieldError(url));
   return h(
     'div',
-    { class: 'panel' },
+    { class: 'panel add-registry' },
+    h(
+      'div',
+      { class: 'panel-head' },
+      h(
+        'div',
+        {},
+        h('h2', { text: 'Add registry' }),
+        h('p', { text: 'Name is optional. The URL must return a registry JSON file.' }),
+      ),
+    ),
     h(
       'form',
       {
@@ -429,7 +514,10 @@ function addRegistryForm(ctx: OptionsContext): HTMLElement {
           submit: (event: Event) => {
             event.preventDefault();
             const value = url.value.trim();
-            if (!value) return;
+            if (!value) {
+              fail('Enter a registry URL.');
+              return;
+            }
             void (async () => {
               await ctx.requestOrigin(value);
               try {
@@ -444,11 +532,6 @@ function addRegistryForm(ctx: OptionsContext): HTMLElement {
           },
         },
       },
-      h('h2', { text: 'Add a registry' }),
-      h('p', {
-        class: 'section-note',
-        text: 'A registry is one JSON file with one or more declarative chat plugins.',
-      }),
       h('div', { class: 'field-row' }, field('Name', name), field('URL', url)),
       h(
         'div',

@@ -58,8 +58,8 @@ the chat's identity. It cannot run code.
 Standard WebExtension match patterns, restricted to `http` and `https`:
 
 - `https://vk.com/*`
-- `https://*.vk.com/*` — the domain and all subdomains.
-- `*://*/*` — any http/https page. Do not use this unless you truly mean it.
+- `https://*.vk.com/*`: the domain and all subdomains.
+- `*://*/*`: any http/https page. Do not use this unless you truly mean it.
 
 The path must start with `/`. URL ports are ignored, and patterns with explicit ports
 are rejected. Path matching includes the query string and is case-sensitive; fragments
@@ -106,12 +106,12 @@ Rules are evaluated in order; the first non-empty result wins:
 ]
 ```
 
-- `urlParam` — `new URL(location.href).searchParams.get(param)`.
-- `urlRegex` — first match of the regex against the full URL. `group` defaults to 1
+- `urlParam`: `new URL(location.href).searchParams.get(param)`.
+- `urlRegex`: first match of the regex against the full URL. `group` defaults to 1
   when the regex has a capture group, otherwise 0.
-- `dom` — `querySelector(selector)?.getAttribute(attribute)`. The content script
+- `dom`: `querySelector(selector)?.getAttribute(attribute)`. The content script
   retries for up to 4 seconds, so SPA-rendered attributes are fine.
-- `constant` — same key for every page. Useful for single-chat sites.
+- `constant`: same key for every page. Useful for single-chat sites.
 
 Use `constant` as the last fallback so a binding still works when the site changes
 its URL scheme.
@@ -133,9 +133,9 @@ rules, same as `channel`. **`id` is the platform's user id, not the login name**
 7TV's v3 API resolves `twitch/<numeric id>`, `youtube/<channel id>`,
 `kick/<id>`. Values are validated against the documented platform ID format before
 any lookup; invalid values produce a source error and are not sent to 7TV.
-A Twitch plugin has to read the numeric id from the page (or a small lookup service)
-before using auto-channel. For VK there is no 7TV platform connection, so VK users
-bind a 7TV set manually in the popup.
+A Twitch plugin has to read the numeric id from the page before using auto-channel.
+For VK there is no 7TV platform connection, so VK users bind a 7TV set manually in
+the popup.
 
 ## `composer`
 
@@ -146,8 +146,8 @@ bind a 7TV set manually in the popup.
 }
 ```
 
-- `selectors` — fallback chain. The first matching editable element wins.
-- `kind` — `auto` (default), `contenteditable`, or `textarea`. Use `textarea` to
+- `selectors`: fallback chain. The first matching editable element wins.
+- `kind`: `auto` (default), `contenteditable`, or `textarea`. Use `textarea` to
   avoid matching a search box before the real input.
 
 The picker inserts the emote code as **text** followed by a space. It never uploads
@@ -184,7 +184,7 @@ One JSON file:
 ```
 
 Limits: 200 plugins, 2 MB file. Plugin ids must be unique inside a registry. A single
-plugin object is also accepted as a registry, which makes a one-plugin URL easy.
+plugin object is also accepted as a registry, so one URL can serve a single plugin.
 
 ## Local testing
 

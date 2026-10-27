@@ -15,7 +15,7 @@ the extension.
 
 The extension uses the browser's local extension storage for:
 
-- settings, enabled plugins and chat bindings;
+- settings, enabled plugins and chat sets;
 - plugin registry URLs you add;
 - a cache of resolved emote sets and proxied images.
 
@@ -23,7 +23,7 @@ This data stays in your browser profile. Removing the extension deletes it.
 
 ## Network requests
 
-The extension makes HTTPS requests to:
+The extension makes network requests to:
 
 - `7tv.io` and `cdn.7tv.app` for 7TV sets and images;
 - `api.betterttv.net` and `cdn.betterttv.net` for BTTV emotes;
@@ -31,25 +31,30 @@ The extension makes HTTPS requests to:
 - the plugin registry at `https://vijorich.github.io/emote-anywhere/index.json`;
 - any additional registry or custom emote image URL you configure.
 
+The default services above use HTTPS. A custom registry URL may use HTTP.
+
 Like any web request, these expose your IP address, the requested URL and standard
 HTTP headers to the host. The extension does not add identifiers to them.
 
 ## Permissions
 
-- `storage` — settings, bindings and cache.
-- `scripting` — inject the content script only on sites whose plugin you enable.
-- `activeTab` — read the current tab URL when you open the popup.
-- optional host access — requested when you enable a plugin, so the extension can read
-  messages and render emotes on that chat site.
-- host access to the emote CDNs above — background image proxy for sites whose
+- `storage`: settings, chat sets and cache.
+- `scripting`: inject the content script only on sites whose plugin you enable.
+- `activeTab`: read the current tab URL when you open the popup.
+- optional host access for the plugin's origins: requested when you enable a plugin, so
+  the extension can read messages and render emotes on that chat site.
+- host access to the emote CDNs above: background image proxy for sites whose
   Content Security Policy blocks external images.
 
-The extension cannot access a chat site until you enable a plugin for it.
+The extension does not read chat messages until you enable a plugin for that site.
+Opening the popup reads the active tab URL through `activeTab`; host access is
+requested per plugin.
 
 ## Third parties
 
-Emote data and images are provided by 7TV, BetterTTV and FrankerFaceZ under their own
-terms and privacy policies. The extension does not control those services.
+Emote data and images are provided by 7TV, BetterTTV and FrankerFaceZ, or by a custom
+image host you add, under their own terms and privacy policies. The extension does
+not control those services.
 
 ## Contact
 

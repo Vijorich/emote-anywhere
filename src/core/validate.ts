@@ -296,7 +296,7 @@ export function parseSevenTvSetId(input: string): string {
   const urlMatch = /emote-sets\/([A-Za-z0-9]{6,64})/.exec(value);
   const id = urlMatch?.[1] ?? value;
   if (!/^[A-Za-z0-9]{6,64}$/.test(id)) {
-    throw new Error('Expected a 7TV set id or https://7tv.app/emote-sets/<id> URL');
+    throw new Error('Enter a 7TV set link or ID.');
   }
   return id;
 }

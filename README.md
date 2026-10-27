@@ -3,51 +3,53 @@
 [![CI](https://github.com/Vijorich/emote-anywhere/actions/workflows/ci.yml/badge.svg)](https://github.com/Vijorich/emote-anywhere/actions/workflows/ci.yml)
 [![Release](https://github.com/Vijorich/emote-anywhere/actions/workflows/release.yml/badge.svg)](https://github.com/Vijorich/emote-anywhere/releases)
 
-7TV, BTTV and FFZ emotes in any web chat. Site support is not built into the
-extension: each chat is described by a declarative JSON plugin, so selectors can be
-fixed without shipping a new extension version.
+7TV, BetterTTV (BTTV) and FrankerFaceZ (FFZ) emotes in VK Messenger and other
+chats with a plugin. Site support is not built into the extension: each chat is
+described by a declarative JSON plugin, so selectors can be fixed without shipping
+a new extension version.
 
-![Emote Anywhere settings overview](store/screenshots/01-overview.png)
+![Emote Anywhere sources settings](store/screenshots/01-sources.png)
 
 ## Status
 
-Public beta (0.2.0). Chrome/Edge (123+) and Firefox MV3. The engine, plugin registry,
-settings page, popup and emote picker are implemented; the VK adapter is the first
-plugin. Release builds are attached to [GitHub releases](https://github.com/Vijorich/emote-anywhere/releases).
+Public beta (0.3.0). Chrome/Edge (123+) and Firefox 128+ (MV3). The engine, plugin
+registry, settings page, popup and emote picker are implemented. VK Messenger is the
+first plugin. Release builds are attached to
+[GitHub releases](https://github.com/Vijorich/emote-anywhere/releases).
 
 ## How it works
 
 Three independent layers:
 
-- **Engine** (`src/engine`) — finds messages, tokenizes text, renders `<img>` emotes,
+- **Engine** (`src/engine`): finds messages, tokenizes text, renders `<img>` emotes,
   survives re-renders and virtualized lists, groups zero-width emotes.
-- **Plugin** (`registry/`) — data only: URL patterns, CSS selectors, how to derive a
-  channel key, where the composer is. No JavaScript or extension APIs. Provider
-  requests are mediated and validated by the extension.
-- **Providers** (`src/core/emotes`) — 7TV, BTTV and FFZ clients plus custom
+- **Plugin** (`registry/`): data only. It holds URL patterns, CSS selectors, how to
+  derive a channel key and where the composer is. No JavaScript or extension APIs.
+  Provider requests are mediated and validated by the extension.
+- **Providers** (`src/core/emotes`): 7TV, BTTV and FFZ clients plus custom
   `code → URL` sets.
 
-Emote size is a setting (slider in settings and popup). The default is **1.2×**
+Set emote size with the slider in Settings. The default is **1.2×**
 (1.8em at the 1.5em base); the range is 0.5–3.0×.
 
-### Global chat bindings
+### Global sets
 
-A global binding is a list of 7TV sets that loads in **every** chat. The default set
+A global set is a list of 7TV sets that load in **every** chat. The default set
 is [`emote everywhere default set`](https://7tv.app/emote-sets/01M5VFKKAQEH8WEF0N0PNRK2YP)
 (`01M5VFKKAQEH8WEF0N0PNRK2YP`). It is part of the default state and is added to
-existing installs on upgrade. Remove it in **Bindings**, or restore it there.
+existing installs on upgrade. Remove it in **Chat sets**, or restore it there.
 
-A per-chat binding still wins for the chat it was made for. The full priority is:
+A per-chat set still wins for the chat it was made for. The full priority is:
 
-1. per-chat binding sets;
-2. global binding sets;
-3. the site's own 7TV channel (when no per-chat binding exists);
+1. per-chat sets;
+2. global sets;
+3. the site's own 7TV channel (when no per-chat set exists);
 4. enabled custom sets;
 5. 7TV, BTTV and FFZ global providers.
 
 The first source that defines a code renders it.
 
-Manage global sets in **Bindings**, or add a per-chat set from the popup while the
+Manage global sets in **Chat sets**, or add a per-chat set from the popup while the
 chat is open.
 
 The background worker owns all state and emote resolution. Content scripts ask it for
@@ -75,7 +77,8 @@ it before a release; see [BACKLOG.md](BACKLOG.md) for the remaining manual steps
 `pnpm preview` serves the settings and popup UI with a mock extension API at
 `http://localhost:5199/options.html` and `/popup.html`; the picker preview is
 `http://localhost:5199/picker.html`. It is a development tool; nothing in
-`dev/ui` is shipped.
+`dev/ui` is shipped. The visual direction and token rationale are in
+[`DESIGN.md`](DESIGN.md).
 
 The local default registry is served by:
 
@@ -100,9 +103,9 @@ VK-like image CSP.
 
 `.github/workflows/release.yml` detects the new version, waits for the public
 registry, runs `release:check`, typecheck, tests and both builds, then creates tag
-`v<version>` and attaches the Chrome, Firefox and Firefox sources zips to the GitHub
-release. If the tag already exists the release is skipped. Store submission steps
-are in [`docs/STORE.md`](docs/STORE.md).
+`v<version>` and attaches the Chrome zip, Firefox zip and Firefox sources zip to the
+GitHub release. If the tag already exists the release is skipped. Store submission
+steps are in [`docs/STORE.md`](docs/STORE.md).
 
 The registry itself is deployed by `.github/workflows/pages.yml` whenever
 `registry/` changes.
@@ -127,15 +130,16 @@ The registry itself is deployed by `.github/workflows/pages.yml` whenever
 
 ## Permissions
 
-- `storage` — settings, plugins, bindings, cache.
-- `scripting` — register the content script only for enabled plugin hosts.
-- `activeTab` — read the current tab URL from the popup.
+- `storage`: settings, plugins, chat sets, cache.
+- `scripting`: register the content script only for enabled plugin hosts.
+- `activeTab`: read the current tab URL from the popup.
 - `host_permissions` for `cdn.7tv.app`, `cdn.betterttv.net`,
-  `cdn.frankerfacez.com` — background image proxy. BTTV's CDN has no CORS headers.
-- `optional_host_permissions: *://*/*` — requested per plugin when you enable it.
-  The extension has no access to chat sites until you turn a plugin on. Disabling a
-  plugin stops its content script but does not revoke access already granted; revoke
-  it in the browser's extension site-access settings if desired.
+  `cdn.frankerfacez.com`: background image proxy. BTTV's CDN has no CORS headers.
+- `optional_host_permissions: *://*/*` is declared in the manifest, but the extension
+  requests only the enabled plugin's origins. Opening the popup reads the current tab
+  URL through `activeTab`. The extension does not read chat messages until you turn a
+  plugin on. Disabling a plugin stops its content script but does not revoke access
+  already granted; revoke it in the browser's extension site-access settings if desired.
 
 ## Privacy
 
@@ -154,7 +158,6 @@ src/
   entrypoints/   background, content script, options, popup
   entrypoints/options/views/  one module per settings screen
   ui/            shared theme, components, set lookups
-  assets/fonts/  bundled IBM Plex Sans and Plex Mono (SIL OFL)
 dev/ui/          standalone settings, popup and picker preview (not shipped)
 public/          extension icons
 registry/        default JSON registry, deployed to GitHub Pages
@@ -169,7 +172,7 @@ tests/           engine, core, background, provider, picker and UI tests
 - Tokens are matched inside one text node. A code split across two elements is not
   matched.
 - Shadow-DOM chat surfaces are not traversed.
-- Very large custom sets or bindings can hit the extension's state-size guard.
+- Very large custom sets or chat sets can hit the extension's state-size guard.
 - Zero-width emotes attach to the previous emote only when whitespace separates them.
 - A site with a strict `img-src` CSP can block emote images. VK is handled with
   `proxyImages` (background fetch → `data:` URL); other strict sites need the same
@@ -179,8 +182,7 @@ tests/           engine, core, background, provider, picker and UI tests
 
 ## License
 
-MIT. The bundled IBM Plex fonts are under the SIL Open Font License; see
-`src/assets/fonts/OFL.txt`.
+MIT.
 
 ## VK specifics
 

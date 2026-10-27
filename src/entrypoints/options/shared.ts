@@ -8,16 +8,31 @@ export function setRow(
   options: { removeLabel?: string; onRemove?: () => void } = {},
 ): HTMLElement {
   const media = h('span', { class: 'media-stack' }, h('span', { class: 'media' }));
-  const title = h('span', { class: 'row-title', text: `7TV set ${shortId(id)}` });
-  const sub = h('span', { class: 'row-sub mono', text: id });
+  const title = h('span', { class: 'row-title', text: '7TV set' });
+  const sub = h('span', { class: 'row-sub' });
+  const link = h('a', {
+    class: 'set-row-link',
+    href: setUrl(id),
+    target: '_blank',
+    rel: 'noreferrer',
+    title: `Open set ${id} on 7TV`,
+    'aria-label': `Open set ${id} on 7TV`,
+  });
 
   void lookupSet(id).then((info) => {
-    if (!info) return;
+    if (!info) {
+      sub.textContent = 'Could not load set.';
+      media.remove();
+      return;
+    }
     title.textContent = info.name;
-    sub.textContent = `${plural(info.emoteCount, 'emote')} · ${id}`;
-    sub.classList.remove('mono');
+    sub.textContent = plural(info.emoteCount, 'emote');
+    link.setAttribute('aria-label', `Open ${info.name} on 7TV`);
     const thumbs = (info.preview ?? []).slice(0, 3);
-    if (!thumbs.length) return;
+    if (!thumbs.length) {
+      media.remove();
+      return;
+    }
     media.replaceChildren(
       ...thumbs.map((preview) =>
         h(
@@ -36,19 +51,9 @@ export function setRow(
 
   return h(
     'div',
-    { class: 'row' },
-    h(
-      'a',
-      {
-        class: 'row-main set-link',
-        href: setUrl(id),
-        target: '_blank',
-        rel: 'noreferrer',
-        title: `Open set ${id} on 7TV`,
-      },
-      media,
-      h('span', { class: 'row-copy' }, title, sub),
-    ),
+    { class: 'row set-row' },
+    link,
+    h('div', { class: 'row-main' }, media, h('span', { class: 'row-copy' }, title, sub)),
     options.onRemove
       ? h(
           'div',
@@ -103,22 +108,17 @@ export function sourceOrderSection(current: AppState): HTMLElement {
     h(
       'div',
       { class: 'section-head' },
-      h('h2', { text: 'Source order' }),
-      h('span', { class: 'meta', text: 'First match wins' }),
+      h('h2', { text: 'Emote priority' }),
     ),
     h(
       'div',
       { class: 'panel' },
-      sourceRow('Per-chat binding', bindingCount ? plural(bindingCount, 'chat') : 'None', bindingCount > 0),
-      sourceRow('Global binding', globalCount ? plural(globalCount, 'set') : 'None', globalCount > 0),
+      sourceRow('Per-chat', bindingCount ? plural(bindingCount, 'chat') : 'None', bindingCount > 0),
+      sourceRow('Global sets', globalCount ? plural(globalCount, 'set') : 'None', globalCount > 0),
       sourceRow('7TV channel', settings.autoChannel ? 'Auto' : 'Off', settings.autoChannel),
       sourceRow('Custom sets', customCount ? plural(customCount, 'set') : 'Off', customCount > 0),
-      sourceRow('Provider globals', `${providerCount} on`, providerCount > 0),
+      sourceRow('Providers', `${providerCount} on`, providerCount > 0),
     ),
-    h('p', {
-      class: 'section-note',
-      text: 'The first source that defines a code renders it. Later sources fill the rest.',
-    }),
   );
 }
 
@@ -131,25 +131,45 @@ function sourceRow(name: string, value: string, active: boolean): HTMLElement {
   );
 }
 
-export function stat(
-  value: string,
-  unit: string,
+export async function withBusy(
+  button: HTMLButtonElement,
   label: string,
-  hint: string,
-  accent = false,
-  extra?: Node | null,
-): HTMLElement {
-  return h(
-    'div',
-    { class: 'stat' },
-    h('span', { class: 'stat-label', text: label }),
-    h(
-      'span',
-      { class: accent ? 'stat-value accent' : 'stat-value' },
-      value,
-      unit ? h('span', { class: 'unit', text: unit }) : null,
-    ),
-    extra ?? null,
-    h('span', { class: 'stat-hint', text: hint }),
-  );
+  task: () => Promise<void>,
+): Promise<void> {
+  const original = button.textContent;
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  button.textContent = label;
+  try {
+    await task();
+  } finally {
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+    button.textContent = original;
+  }
+}
+
+let fieldErrorCount = 0;
+
+export function markFieldError(
+  input: HTMLInputElement | HTMLTextAreaElement,
+  message: string,
+): void {
+  if (!input.id) input.id = `ea-field-${++fieldErrorCount}`;
+  let error = input.parentElement?.querySelector<HTMLElement>('.field-error') ?? null;
+  if (!error) {
+    error = h('span', { class: 'field-error', id: `${input.id}-error` });
+    input.after(error);
+  }
+  error.textContent = message;
+  input.setAttribute('aria-invalid', 'true');
+  input.setAttribute('aria-describedby', `${input.id}-error`);
+  input.focus();
+}
+
+export function clearFieldError(input: HTMLInputElement | HTMLTextAreaElement): void {
+  const error = input.parentElement?.querySelector<HTMLElement>('.field-error');
+  if (error) error.remove();
+  input.removeAttribute('aria-invalid');
+  input.removeAttribute('aria-describedby');
 }

@@ -6,7 +6,7 @@ export default defineConfig({
   manifest: ({ browser }) => ({
     name: 'Emote Anywhere',
     description:
-      '7TV, BTTV and FFZ emotes in any chat. Site support is added by declarative plugins, not extension updates.',
+      '7TV, BTTV and FFZ emotes in VK Messenger and other chats with a plugin. Add site support without an extension update.',
     homepage_url: 'https://github.com/Vijorich/emote-anywhere',
     permissions: ['storage', 'scripting', 'activeTab'],
     ...(browser === 'firefox' ? {} : { minimum_chrome_version: '123' }),

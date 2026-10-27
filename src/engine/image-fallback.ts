@@ -1,7 +1,8 @@
 import { rpc } from '../core/rpc';
 
-const MAX_CACHE = 600;
-const MAX_CACHE_BYTES = 32 * 1024 * 1024;
+// Every frame has its own heap and the background already caches 32 MiB.
+const MAX_CACHE = 200;
+const MAX_CACHE_BYTES = 8 * 1024 * 1024;
 const cache = new Map<string, string>();
 const inflight = new Map<string, Promise<string | null>>();
 let cacheBytes = 0;
@@ -35,10 +36,7 @@ function store(url: string, dataUrl: string): void {
   cacheBytes += bytes;
 }
 
-/**
- * Some sites (VK) have an img-src CSP that blocks emote CDNs. The background
- * worker fetches the bytes and returns a data: URL, which those sites allow.
- */
+/** VK's img-src CSP blocks emote CDNs; fetch bytes in the background and return a data: URL. */
 export function proxiedImage(url: string): Promise<string | null> {
   const cached = getCached(url);
   if (cached) return Promise.resolve(cached);

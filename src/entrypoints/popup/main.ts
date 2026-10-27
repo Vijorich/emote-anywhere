@@ -1,11 +1,8 @@
 import './style.css';
 import { browser } from 'wxt/browser';
 import { bindingKey } from '../../core/channel';
-import { DEFAULT_EMOTE_SCALE } from '../../core/defaults';
-import { EMOTE_BASE_HEIGHT_EM } from '../../core/config';
 import { rpc } from '../../core/rpc';
 import type {
-  AppSettings,
   AppState,
   Binding,
   ContentContext,
@@ -14,13 +11,15 @@ import type {
   SevenTvSetInfo,
 } from '../../core/types';
 import { matchSpecificity, urlMatchesAny } from '../../core/url-match';
-import { brandMark, pill, plural, shortId, switchRow } from '../../ui/components';
+import { brandMark, plural, shortId, switchRow } from '../../ui/components';
 import { h } from '../../ui/dom';
+import { trackFocusModality } from '../../ui/focus-modality';
 import { clearSetLookupCache, lookupSet, setUrl } from '../../ui/sets';
 
 const appElement = document.querySelector<HTMLElement>('#app');
 if (!appElement) throw new Error('Missing #app');
 const app: HTMLElement = appElement;
+trackFocusModality();
 
 let state: AppState | null = null;
 let tabId: number | undefined;
@@ -28,6 +27,28 @@ let tabUrl = '';
 let context: ContentContext | null = null;
 let message: { text: string; kind: 'ok' | 'error' } | null = null;
 let messageTimer: number | null = null;
+let restoreFocusKey: string | null = null;
+
+function messageBanner(): HTMLElement | null {
+  if (!message) return null;
+  return h('div', {
+    class: `banner ${message.kind}`,
+    role: message.kind === 'error' ? 'alert' : 'status',
+    'data-message': 'true',
+    text: message.text,
+  });
+}
+
+function updateMessage(): void {
+  const current = app.querySelector('[data-message]');
+  const next = messageBanner();
+  if (current) {
+    if (next) current.replaceWith(next);
+    else current.remove();
+  } else if (next) {
+    app.querySelector('.popup-head')?.after(next);
+  }
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -47,6 +68,7 @@ function show(text: string, kind: 'ok' | 'error' = 'ok'): void {
       if (!active || (active.tagName !== 'INPUT' && active.tagName !== 'TEXTAREA')) render();
     }, 5000);
   }
+  updateMessage();
 }
 
 function hostname(): string {
@@ -148,18 +170,65 @@ function setChip(setId: string, onRemove: () => void): HTMLElement {
   return chip;
 }
 
+function clearBindingButton(binding: Binding): HTMLButtonElement {
+  const button = h('button', {
+    class: 'btn danger tiny',
+    type: 'button',
+    text: 'Clear binding',
+  });
+  let armed = false;
+  let timer: number | null = null;
+
+  // Native confirm() is unreliable inside an action popup, so arm on first
+  // click and act on the second.
+  const disarm = (): void => {
+    armed = false;
+    if (timer !== null) {
+      window.clearTimeout(timer);
+      timer = null;
+    }
+    button.textContent = 'Clear binding';
+    button.classList.remove('armed');
+  };
+
+  button.addEventListener('click', () => {
+    if (!armed) {
+      armed = true;
+      button.textContent = 'Confirm clear';
+      button.classList.add('armed');
+      timer = window.setTimeout(disarm, 4000);
+      return;
+    }
+    disarm();
+    button.disabled = true;
+    button.textContent = 'Clearing…';
+    void rpc('binding/remove', { key: binding.key })
+      .then(() => refresh())
+      .catch((error: unknown) => {
+        show(String(error), 'error');
+        render();
+      })
+      .finally(() => {
+        button.disabled = false;
+        button.textContent = 'Clear binding';
+      });
+  });
+
+  return button;
+}
+
 function bindingCard(plugin: InstalledPlugin): HTMLElement {
   const binding = currentBinding(plugin);
   const input = h('input', {
     class: 'input',
     type: 'text',
-    placeholder: '7TV set id or 7tv.app link',
-    'aria-label': '7TV set to bind to this chat',
+    placeholder: '7TV set link or ID',
+    'aria-label': '7TV set for this chat',
   });
   const bindButton = h('button', {
     class: 'btn primary',
     type: 'submit',
-    text: 'Bind set',
+    text: 'Add set',
   });
 
   const bind = (): void => {
@@ -177,12 +246,11 @@ function bindingCard(plugin: InstalledPlugin): HTMLElement {
           sets,
         });
         input.value = '';
-        show(`Bound ${info.name}`);
+        show(`Added ${info.name}`);
         await refresh();
       } catch (error) {
         show(error instanceof Error ? error.message : String(error), 'error');
         bindButton.disabled = false;
-        render();
       }
     })();
   };
@@ -203,7 +271,7 @@ function bindingCard(plugin: InstalledPlugin): HTMLElement {
           } else {
             await rpc('binding/remove', { key: binding.key });
           }
-          show('Binding updated');
+          show('Set removed');
           await refresh();
         } catch (error) {
           show(error instanceof Error ? error.message : String(error), 'error');
@@ -225,30 +293,16 @@ function bindingCard(plugin: InstalledPlugin): HTMLElement {
         h('h2', { text: 'This chat' }),
         h('p', {
           class: 'mono',
-          text: context?.channelKey ?? 'unknown channel',
+          text: context?.channelKey ? `Channel ${context.channelKey}` : 'Unknown chat',
         }),
       ),
-      binding
-        ? h('button', {
-            class: 'btn danger tiny',
-            type: 'button',
-            text: 'Unbind',
-            onclick: () => {
-              void rpc('binding/remove', { key: binding.key })
-                .then(() => refresh())
-                .catch((error: unknown) => {
-                  show(String(error), 'error');
-                  render();
-                });
-            },
-          })
-        : null,
+      binding ? clearBindingButton(binding) : null,
     ),
     chips.length
       ? h('div', { class: 'chips' }, ...chips)
       : h('p', {
           class: 'section-note',
-          text: 'No set bound here. The chat uses global sets, the 7TV channel or the provider globals.',
+          text: 'No 7TV set for this chat. Add one below.',
         }),
     h(
       'form',
@@ -264,54 +318,6 @@ function bindingCard(plugin: InstalledPlugin): HTMLElement {
       input,
       bindButton,
     ),
-  );
-}
-
-function globalCard(current: AppState): HTMLElement {
-  const sets = current.globalBinding.sets;
-  const rows = sets.length
-    ? h(
-        'div',
-        { class: 'global-list' },
-        ...sets.map((id) => {
-          const label = h('a', {
-            class: 'row-title set-link',
-            href: setUrl(id),
-            target: '_blank',
-            rel: 'noreferrer',
-            text: shortId(id),
-          });
-          const count = h('span', { class: 'pill', text: '7TV' });
-          void lookupSet(id).then((info) => {
-            if (!info) return;
-            label.textContent = info.name;
-            count.textContent = plural(info.emoteCount, 'emote');
-          });
-          return h('div', { class: 'global-row' }, label, count);
-        }),
-      )
-    : h('p', { class: 'section-note', text: 'No global sets. Using channel and provider emotes.' });
-
-  return h(
-    'section',
-    { class: 'panel' },
-    h(
-      'div',
-      { class: 'panel-head' },
-      h(
-        'div',
-        {},
-        h('h2', { text: 'Global sets' }),
-        h('p', { text: 'Load in every chat.' }),
-      ),
-      h('button', {
-        class: 'btn tiny',
-        type: 'button',
-        text: 'Manage',
-        onclick: () => openOptions('#bindings'),
-      }),
-    ),
-    rows,
   );
 }
 
@@ -331,29 +337,26 @@ function pluginCard(plugin: InstalledPlugin): HTMLElement {
         h('h2', { class: 'plugin-name', text: plugin.descriptor.name }),
         h('p', {
           class: 'row-sub',
-          text: `${plural(plugin.descriptor.matches.length, 'host')} · v${plugin.descriptor.version}`,
+          text: `${plural(plugin.descriptor.matches.length, 'site')} · v${plugin.descriptor.version}`,
         }),
       ),
       switchRow({
         title: '',
         ariaLabel: `Enable ${plugin.descriptor.name}`,
+        focusKey: `plugin-${plugin.key}`,
         checked: on,
         onChange: (checked) => togglePlugin(plugin, checked),
       }),
     ),
     h(
       'p',
-      { class: connected ? 'status ok' : 'status' },
-      connected
-        ? `Connected to ${context?.channelKey ?? 'this chat'}`
-        : on
-          ? 'Page not connected'
-          : 'Off for this site',
+      { class: connected ? 'status ok' : on ? 'status warn' : 'status' },
+      connected ? 'Connected' : on ? 'Not connected' : 'Off',
       on && !connected
         ? h('button', {
             class: 'btn tiny',
             type: 'button',
-            text: 'Reload tab',
+            text: 'Reload page',
             onclick: () => {
               if (tabId !== undefined) void browser.tabs.reload(tabId);
             },
@@ -368,7 +371,6 @@ function togglePlugin(plugin: InstalledPlugin, enabled: boolean): void {
     if (!enabled) {
       try {
         await rpc('plugin/disable', { key: plugin.key });
-        show('Plugin disabled');
         context = null;
         await refresh();
       } catch (error) {
@@ -381,12 +383,14 @@ function togglePlugin(plugin: InstalledPlugin, enabled: boolean): void {
     try {
       const granted = await browser.permissions.request({ origins: plugin.descriptor.matches });
       if (!granted) {
-        show('Host permission was not granted.', 'error');
+        show(
+          'Site access was not granted. Turn the plugin on again and allow access to its sites.',
+          'error',
+        );
         render();
         return;
       }
       await rpc('plugin/enable', { key: plugin.key });
-      show('Plugin enabled');
       await sleep(350);
       context = await getContext(5);
       await refresh(false);
@@ -397,100 +401,18 @@ function togglePlugin(plugin: InstalledPlugin, enabled: boolean): void {
   })();
 }
 
-function sizeCard(current: AppState): HTMLElement {
-  const output = h('span', { class: 'range-value num', text: `${current.settings.emoteScale.toFixed(1)}×` });
-  const note = h('p', {
-    text: `Default ${DEFAULT_EMOTE_SCALE.toFixed(1)}× · ${(EMOTE_BASE_HEIGHT_EM * current.settings.emoteScale).toFixed(1)}em tall`,
-  });
-  const input = h('input', {
-    type: 'range',
-    min: '0.5',
-    max: '3',
-    step: '0.1',
-    value: String(current.settings.emoteScale),
-    'aria-label': 'Emote size',
-    on: {
-      input: () => {
-        output.textContent = `${Number(input.value).toFixed(1)}×`;
-      },
-      change: () => {
-        const next = Number(input.value);
-        void rpc<AppSettings>('settings/update', {
-          patch: { emoteScale: next },
-        })
-          .then((settings) => {
-            if (state) state.settings = settings;
-            note.textContent = `Default ${DEFAULT_EMOTE_SCALE.toFixed(1)}× · ${(EMOTE_BASE_HEIGHT_EM * next).toFixed(1)}em tall`;
-          })
-          .catch((error: unknown) => {
-            if (state) {
-              input.value = String(state.settings.emoteScale);
-              note.textContent = `Default ${DEFAULT_EMOTE_SCALE.toFixed(1)}× · ${(EMOTE_BASE_HEIGHT_EM * state.settings.emoteScale).toFixed(1)}em tall`;
-            }
-            output.textContent = `${Number(input.value).toFixed(1)}×`;
-            show(String(error), 'error');
-          });
-      },
-    },
-  });
-
-  const applyScale = (next: number): void => {
-    input.value = String(next);
-    output.textContent = `${next.toFixed(1)}×`;
-    note.textContent = `Default ${DEFAULT_EMOTE_SCALE.toFixed(1)}× · ${(EMOTE_BASE_HEIGHT_EM * next).toFixed(1)}em tall`;
-    if (state) state.settings.emoteScale = next;
-  };
-
-  return h(
-    'section',
-    { class: 'panel' },
-    h(
-      'div',
-      { class: 'panel-head' },
-      h(
-        'div',
-        {},
-        h('h2', { text: 'Emote size' }),
-        note,
-      ),
-      h('button', {
-        class: 'btn tiny',
-        type: 'button',
-        text: 'Reset',
-        onclick: () => {
-          void rpc<AppSettings>('settings/update', {
-            patch: { emoteScale: DEFAULT_EMOTE_SCALE },
-          })
-            .then((settings) => {
-              if (state) state.settings = settings;
-              applyScale(DEFAULT_EMOTE_SCALE);
-            })
-            .catch((error: unknown) => {
-              show(String(error), 'error');
-            });
-        },
-      }),
-    ),
-    h('div', { class: 'range-row' }, input, output),
-  );
-}
-
 function noPluginView(): HTMLElement {
   return h(
     'section',
     { class: 'panel empty-panel' },
-    h('h2', { text: 'No site support yet' }),
-    h('p', {
-      class: 'section-note',
-      text: 'Site support is a declarative plugin. Add a registry or enable a plugin for this host in Sources.',
-    }),
+    h('h2', { text: 'Not supported here' }),
     h(
       'div',
       { class: 'form-actions' },
       h('button', {
         class: 'btn primary',
         type: 'button',
-        text: 'Open sources',
+        text: 'Open Sources',
         onclick: () => openOptions('#sources'),
       }),
     ),
@@ -498,6 +420,19 @@ function noPluginView(): HTMLElement {
 }
 
 function render(): void {
+  const active = document.activeElement as HTMLElement | null;
+  if (active?.dataset.focusKey) {
+    restoreFocusKey = active.dataset.focusKey;
+    queueMicrotask(() => {
+      const key = restoreFocusKey;
+      restoreFocusKey = null;
+      if (!key) return;
+      const target = Array.from(
+        app.querySelectorAll<HTMLElement>('[data-focus-key]'),
+      ).find((element) => element.dataset.focusKey === key);
+      target?.focus();
+    });
+  }
   app.replaceChildren();
 
   app.append(
@@ -514,9 +449,8 @@ function render(): void {
     ),
   );
 
-  if (message) {
-    app.append(h('div', { class: `banner ${message.kind}`, role: 'status', text: message.text }));
-  }
+  const banner = messageBanner();
+  if (banner) app.append(banner);
 
   if (!state) {
     if (message?.kind === 'error') {
@@ -563,36 +497,43 @@ function render(): void {
 
   if (plugin.enabled) {
     if (context) app.append(bindingCard(plugin));
-    app.append(globalCard(state));
-    app.append(sizeCard(state));
+    const reloadButton = h('button', {
+      class: 'btn',
+      type: 'button',
+      text: 'Reload emotes',
+      onclick: () => {
+        if (reloadButton.disabled) return;
+        reloadButton.disabled = true;
+        reloadButton.setAttribute('aria-busy', 'true');
+        reloadButton.textContent = 'Reloading…';
+        void (async () => {
+          try {
+            await rpc('cache/clear');
+            clearSetLookupCache();
+            if (tabId !== undefined) {
+              await browser.tabs
+                .sendMessage(tabId, { type: 'ea/resync' })
+                .catch(() => undefined);
+            }
+            await sleep(300);
+            show('Reloaded');
+            await refresh();
+          } catch (error) {
+            show(error instanceof Error ? error.message : String(error), 'error');
+            render();
+          } finally {
+            reloadButton.disabled = false;
+            reloadButton.removeAttribute('aria-busy');
+            reloadButton.textContent = 'Reload emotes';
+          }
+        })();
+      },
+    });
     app.append(
       h(
         'footer',
         { class: 'popup-foot' },
-        h('button', {
-          class: 'btn',
-          type: 'button',
-          text: 'Reload emotes',
-          onclick: () => {
-            void (async () => {
-              try {
-                await rpc('cache/clear');
-                clearSetLookupCache();
-                if (tabId !== undefined) {
-                  await browser.tabs
-                    .sendMessage(tabId, { type: 'ea/resync' })
-                    .catch(() => undefined);
-                }
-                await sleep(300);
-                show('Emotes reloaded');
-                await refresh();
-              } catch (error) {
-                show(error instanceof Error ? error.message : String(error), 'error');
-                render();
-              }
-            })();
-          },
-        }),
+        reloadButton,
         h('button', {
           class: 'btn quiet',
           type: 'button',

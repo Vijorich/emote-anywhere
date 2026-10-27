@@ -112,7 +112,7 @@ export async function injectIntoOpenTabs(matches: string[]): Promise<void> {
   }
 }
 
-/** Ask every open tab to re-check its plugin after a permission changes. */
+/** Ask every open tab to re-check its plugin after a permission change. */
 export async function resyncOpenTabs(): Promise<void> {
   let tabs: Array<{ id?: number }> = [];
   try {

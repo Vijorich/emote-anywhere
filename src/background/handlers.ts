@@ -11,7 +11,9 @@ import { lookupSevenTvSet, resolveEmotes } from '../core/emotes/resolve';
 import { getState, mutateState, updateSettings } from '../core/state';
 import type {
   AppSettings,
+  AppState,
   Binding,
+  ChatEmote,
   ChatRegistration,
   CustomSet,
   PluginMatch,
@@ -25,6 +27,77 @@ import { addRegistry, refreshOneRegistry, refreshRegistries, removeRegistry } fr
 import { fetchImageAsDataUrl } from './images';
 
 const MAX_SETS = 50;
+
+/** Resolved sets are identical for every frame of the same tab and survive for a few minutes. */
+const REGISTRATION_CACHE_TTL_MS = 5 * 60 * 1000;
+const MAX_REGISTRATION_CACHE = 8;
+interface RegistrationPayload {
+  emotes: ChatEmote[];
+  sources: string[];
+  errors: string[];
+}
+interface RegistrationCacheEntry {
+  at: number;
+  resolved: RegistrationPayload;
+}
+const registrationCache = new Map<string, RegistrationCacheEntry>();
+
+export function clearRegistrationCache(): void {
+  registrationCache.clear();
+}
+
+/**
+ * Covers every input of resolveEmotes. Custom sets are immutable apart from
+ * add/remove/toggle, so id + size is enough to detect a change.
+ */
+export function registrationCacheKey(
+  state: AppState,
+  pluginKey: string,
+  pluginUpdatedAt: number,
+  binding: Binding | null,
+  sevenTvId: string | undefined,
+): string {
+  const customSets = state.customSets
+    .filter((set) => set.enabled)
+    .map((set) => `${set.id}:${set.emotes.length}`)
+    .join(',');
+  return [
+    pluginKey,
+    pluginUpdatedAt,
+    sevenTvId ?? '',
+    binding?.sets.join(',') ?? '',
+    state.globalBinding.sets.join(','),
+    state.settings.autoChannel ? '1' : '0',
+    state.settings.providers.sevenTv ? '1' : '0',
+    state.settings.providers.bttv ? '1' : '0',
+    state.settings.providers.ffz ? '1' : '0',
+    customSets,
+  ].join('|');
+}
+
+function getCachedRegistration(key: string): RegistrationPayload | null {
+  const entry = registrationCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.at >= REGISTRATION_CACHE_TTL_MS) {
+    registrationCache.delete(key);
+    return null;
+  }
+  registrationCache.delete(key);
+  registrationCache.set(key, entry);
+  return entry.resolved;
+}
+
+function storeRegistration(key: string, resolved: RegistrationPayload): void {
+  // Provider failures must be retried on the next registration.
+  if (resolved.errors.length) return;
+  registrationCache.delete(key);
+  while (registrationCache.size >= MAX_REGISTRATION_CACHE) {
+    const oldest = registrationCache.keys().next().value;
+    if (oldest === undefined) break;
+    registrationCache.delete(oldest);
+  }
+  registrationCache.set(key, { at: Date.now(), resolved });
+}
 
 async function prepareSets(values: string[], allowEmpty = false): Promise<string[]> {
   if (!Array.isArray(values)) throw new Error('Expected a list of 7TV sets');
@@ -116,21 +189,33 @@ export async function handleRpc(
       const channelKey = safeChannelKey(request.channelKey);
       const key = bindingKey(plugin.key, channelKey);
       const binding = state.bindings[key] ?? null;
-      const resolved = await resolveEmotes({
+      const cacheKey = registrationCacheKey(
+        state,
+        plugin.key,
+        plugin.updatedAt,
         binding,
-        globalBinding: state.globalBinding,
-        settings: state.settings,
-        customSets: state.customSets,
-        sevenTv: plugin.descriptor.chat.sevenTv,
-        sevenTvId: request.sevenTvId,
-      });
-      const registration: ChatRegistration = {
-        emotes: resolved.emotes,
-        sources: resolved.sources,
-        errors: resolved.errors,
-        binding,
-      };
-      return registration;
+        request.sevenTvId,
+      );
+      let registration = getCachedRegistration(cacheKey);
+      if (!registration) {
+        const resolved = await resolveEmotes({
+          binding,
+          globalBinding: state.globalBinding,
+          settings: state.settings,
+          customSets: state.customSets,
+          sevenTv: plugin.descriptor.chat.sevenTv,
+          sevenTvId: request.sevenTvId,
+        });
+        registration = {
+          // Strip the provider: content scripts never use it and it is sizable
+          // at 30k resolved entries.
+          emotes: resolved.emotes.map(({ code, url, flags }) => ({ code, url, flags })),
+          sources: resolved.sources,
+          errors: resolved.errors,
+        };
+        storeRegistration(cacheKey, registration);
+      }
+      return { ...registration, binding } satisfies ChatRegistration;
     }
 
     case 'binding/set': {
@@ -244,6 +329,7 @@ export async function handleRpc(
       return fetchImageAsDataUrl(request.url);
 
     case 'cache/clear':
+      clearRegistrationCache();
       await clearEmoteCache();
       return true;
 

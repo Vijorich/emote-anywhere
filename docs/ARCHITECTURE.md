@@ -5,8 +5,8 @@
 Chrome MV3 forbids remotely hosted code that the browser executes. A plugin system
 that loads JavaScript from a URL cannot be published on the Chrome Web Store and
 would need full page access anyway. Declarative JSON is data: it is allowed, it can
-be updated without an extension release, and a bad plugin can at worst break its own
-selectors.
+be updated without an extension release, and a bad plugin can break rendering on its
+own site, but it cannot run code or add image URLs.
 
 A plugin describes **where** a chat is and **what** to read. It cannot run code.
 
@@ -33,8 +33,8 @@ A plugin describes **where** a chat is and **what** to read. It cannot run code.
 
 - Single writer for `AppState` in `browser.storage.local`. UI never writes state
   directly; it sends RPC requests.
-- Fetches registries and reconciles plugin descriptors. Enabled flags and bindings
-  survive updates to plugins that remain upstream; removed plugins and their bindings
+- Fetches registries and reconciles plugin descriptors. Enabled flags and chat sets
+  survive updates to plugins that remain upstream; removed plugins and their chat sets
   are deleted after an authoritative fresh fetch. A refresh that returns zero plugins
   is rejected instead of silently deleting every installed plugin.
 - Resolves emotes for a `(plugin, channel)` pair and caches normalized sets for one
@@ -49,7 +49,8 @@ A plugin describes **where** a chat is and **what** to read. It cannot run code.
   tab closes or navigates.
 - Registers **one** dynamic content script (`ea-core`) whose `matches` is the union
   of enabled plugins' match patterns. Chrome/Firefox then inject it only on allowed
-  sites. No `<all_urls>` host permission in the manifest.
+  sites. No required `<all_urls>` host permission in the manifest; optional
+  `*://*/*` is declared, but only plugin origins are requested.
 - Injects the same built script into already-open tabs when a plugin is enabled.
   A `window.__emoteAnywhereLoaded` guard makes double injection harmless.
 
@@ -62,7 +63,7 @@ A plugin describes **where** a chat is and **what** to read. It cannot run code.
 4. Start `ChatEngine`; start `EmotePicker` if the descriptor has a composer.
 5. Re-run on relevant `storage.onChanged` changes (debounced) and on URL changes
    (1 s poll, because page `history` calls are not visible from the isolated world).
-   Registry-only freshness updates and unrelated bindings do not restart the engine.
+   Registry-only freshness updates and unrelated chat sets do not restart the engine.
 
 ### Engine
 
@@ -101,10 +102,10 @@ A plugin describes **where** a chat is and **what** to read. It cannot run code.
 
 ## Emote priority
 
-1. Manual binding for this chat (ordered list of 7TV sets).
-2. Global binding sets (7TV sets that load in every chat).
-3. Auto: 7TV channel connected to the site (`chat.sevenTv`), when no per-chat
-   binding exists.
+1. Per-chat set (ordered list of 7TV sets).
+2. Global sets (7TV sets that load in every chat).
+3. Auto: 7TV channel connected to the site (`chat.sevenTv`), when no per-chat set
+   exists.
 4. Enabled custom sets.
 5. Global 7TV, BTTV, FFZ.
 
@@ -118,11 +119,11 @@ receive it on upgrade. An explicitly empty list stays empty.
 
 ## Settings and popup
 
-- `src/entrypoints/options` is a hash-routed app shell: Overview, Sources,
-  Bindings, Settings and Help. One view per area; no long page of every setting.
+- `src/entrypoints/options` is a hash-routed app shell: Sources, Chat sets,
+  Settings and Help. One view per area; no long page of every setting.
   The manifest opens it in a full tab.
 - `src/entrypoints/popup` is the per-chat control surface: plugin state, the
-  binding for the open channel, global set summary and emote size.
+  set for the open channel, reload and a link to the full options.
 - `src/ui` holds the shared theme tokens, components, set lookup cache and
   product mark. Both pages use it, in light and dark (`prefers-color-scheme`).
 - `dev/ui` is a Vite-only preview harness with a mocked extension API. It renders
@@ -138,8 +139,8 @@ receive it on upgrade. An explicitly empty list stays empty.
 - The content script registration is rebuilt from all enabled + granted plugins.
   Disabling a plugin removes its matches from the registration; open pages stop
   because the content script re-reads state and tears down.
-- Removing a registry removes its plugins and their bindings. A successful upstream
-  refresh also removes plugins that no longer exist and cascades their bindings.
+- Removing a registry removes its plugins and their chat sets. A successful upstream
+  refresh also removes plugins that no longer exist and cascades their chat sets.
 
 ## Security model
 
@@ -150,12 +151,12 @@ receive it on upgrade. An explicitly empty list stays empty.
   extension storage or call extension APIs. Provider requests are mediated by the
   background. Auto-channel IDs are validated against platform formats before any
   7TV lookup, rejecting values outside those formats.
-- Host permissions are optional and requested per plugin. Emote API calls use CORS
-  from the background; no static host permissions are needed for 7TV/BTTV/FFZ.
+- Chat host permissions are optional and requested per plugin. Emote API calls use
+  CORS from the background; only the CDN image proxy uses static host permissions.
   Disabling a plugin unregisters its script but does not revoke an origin grant;
   revoking it in the browser triggers a resync and teardown.
 - Custom emote image URLs must be `https:` or `data:image/`. A page's own CSP can
-  still block them; the extension does not proxy images.
+  still block them; the extension does not proxy custom set images.
 - Regex rules run on URLs, not message text, so ReDoS surface is small.
 
 ## Firefox notes

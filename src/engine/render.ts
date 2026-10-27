@@ -1,6 +1,6 @@
 import { EMOTE_BASE_HEIGHT_EM } from '../core/config';
 import { isZeroWidth } from '../core/emote-flags';
-import type { Emote } from '../core/types';
+import type { ChatEmote } from '../core/types';
 import { proxiedImage } from './image-fallback';
 import type { EmoteToken } from './tokenize';
 
@@ -18,11 +18,7 @@ function gapIsWhitespace(text: string, from: number, to: number): boolean {
   return /^[\s\u200b\ufeff]*$/u.test(text.slice(from, to));
 }
 
-/**
- * A zero-width emote is attached to the previous emote when only whitespace
- * separates them. The group keeps the exact original text so a re-render can
- * restore the DOM to its source form.
- */
+/** Attach zero-width emotes to the previous emote across whitespace; keep the source text for re-render. */
 export function groupTokens(text: string, tokens: EmoteToken[]): EmoteGroup[] {
   const groups: EmoteGroup[] = [];
   for (const token of tokens) {
@@ -53,10 +49,50 @@ function setStyles(element: HTMLElement, styles: Record<string, string>): void {
   }
 }
 
+function createFallback(code: string): HTMLSpanElement {
+  const fallback = document.createElement('span');
+  fallback.className = 'ea-e-fallback';
+  fallback.textContent = code;
+  setStyles(fallback, {
+    display: 'inline-flex',
+    'align-items': 'center',
+    height: '100%',
+    'line-height': '1',
+    'white-space': 'nowrap',
+  });
+  return fallback;
+}
+
+/** Proxied images arrive late; keep bottom-pinned chats pinned when they change layout. */
+function pinScrollAncestors(element: Element): void {
+  for (let current = element.parentElement; current; current = current.parentElement) {
+    const max = current.scrollHeight - current.clientHeight;
+    if (max <= 1) continue;
+    if (max - current.scrollTop > 48) continue;
+    current.scrollTop = max;
+  }
+}
+
+function reveal(img: HTMLImageElement, fallback: HTMLSpanElement | null): void {
+  img.style.setProperty('display', 'block', 'important');
+  fallback?.remove();
+  pinScrollAncestors(img);
+}
+
+function setImageSource(
+  img: HTMLImageElement,
+  fallback: HTMLSpanElement | null,
+  src: string,
+): void {
+  img.src = src;
+  if (img.complete && img.naturalWidth > 0) reveal(img, fallback);
+}
+
 function createImage(
-  emote: Emote,
+  emote: ChatEmote,
   overlay: boolean,
   proxyImages: boolean,
+  fallback: HTMLSpanElement | null = null,
 ): HTMLImageElement {
   const img = document.createElement('img');
   img.alt = emote.code;
@@ -65,7 +101,7 @@ function createImage(
   img.decoding = 'async';
   img.loading = 'eager';
   const styles: Record<string, string> = {
-    display: 'block',
+    display: 'none',
     height: '100%',
     'max-width': 'none',
     'max-height': 'none',
@@ -86,26 +122,28 @@ function createImage(
     styles.width = 'auto';
   }
   setStyles(img, styles);
+  img.addEventListener(
+    'load',
+    () => {
+      reveal(img, fallback);
+    },
+    { once: true },
+  );
 
   if (proxyImages) {
-    img.style.setProperty('min-width', '1em', 'important');
-    img.addEventListener(
-      'load',
-      () => img.style.removeProperty('min-width'),
-      { once: true },
-    );
     void proxiedImage(emote.url).then((dataUrl) => {
-      if (dataUrl) img.src = dataUrl;
+      if (dataUrl) setImageSource(img, fallback, dataUrl);
     });
   } else {
     img.src = emote.url;
+    if (img.complete && img.naturalWidth > 0) reveal(img, fallback);
     img.addEventListener(
       'error',
       () => {
         if (img.dataset.eaRetried === '1') return;
         img.dataset.eaRetried = '1';
         void proxiedImage(emote.url).then((dataUrl) => {
-          if (dataUrl) img.src = dataUrl;
+          if (dataUrl) setImageSource(img, fallback, dataUrl);
         });
       },
       { once: true },
@@ -143,7 +181,8 @@ export function createEmoteSpan(
     'box-shadow': 'none',
   });
 
-  span.append(createImage(base.emote, false, proxyImages));
+  const fallback = createFallback(base.emote.code);
+  span.append(fallback, createImage(base.emote, false, proxyImages, fallback));
   for (const token of group.tokens) {
     if (token === base || !isZeroWidth(token.emote)) continue;
     span.append(createImage(token.emote, true, proxyImages));
@@ -196,7 +235,7 @@ export function readSource(
       return;
     }
     if (element.classList.contains(PICKER_HOST_CLASS) || isExcluded?.(element)) return;
-    for (const child of Array.from(element.childNodes)) visit(child);
+    for (const child of element.childNodes) visit(child);
   };
   visit(root);
   return parts.join('');

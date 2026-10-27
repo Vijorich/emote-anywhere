@@ -63,7 +63,7 @@ beforeEach(() => {
   currentState = makeState();
   mocks.rpc.mockImplementation(async (type: string) => defaultRpc(type));
   document.body.innerHTML = '<div id="app"></div>';
-  window.history.replaceState({}, '', '#overview');
+  window.history.replaceState({}, '', '#sources');
   window.scrollTo = vi.fn();
 });
 
@@ -131,7 +131,7 @@ describe('options UI', () => {
 
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await vi.waitFor(() =>
-      expect(document.querySelector('[data-notice]')?.textContent).toBe('Custom set added'),
+      expect(document.querySelector('[data-notice]')?.textContent).toBe('Set added'),
     );
 
     expect(replaceChildren).toHaveBeenCalledTimes(1);
@@ -179,6 +179,32 @@ describe('options UI', () => {
     expect(restored.checked).toBe(false);
   });
 
+  it('keeps focus on a settings switch after the refresh render', async () => {
+    window.history.replaceState({}, '', '#settings');
+    mocks.rpc.mockImplementation(async (type: string) => {
+      if (type === 'settings/update') {
+        currentState.settings.globalMode = true;
+        return currentState.settings;
+      }
+      return defaultRpc(type);
+    });
+    await import('../src/entrypoints/options/main');
+
+    const input = await waitFor<HTMLInputElement>(
+      'input[data-focus-key="setting-globalMode"]',
+    );
+    input.focus();
+    input.click();
+
+    await vi.waitFor(() => {
+      const next = document.querySelector<HTMLInputElement>(
+        'input[data-focus-key="setting-globalMode"]',
+      );
+      expect(next?.checked).toBe(true);
+      expect(document.activeElement).toBe(next);
+    });
+  });
+
   it('shows an initial loading shell, load error, and working Retry', async () => {
     let attempts = 0;
     mocks.rpc.mockImplementation(async (type: string) => {
@@ -197,22 +223,23 @@ describe('options UI', () => {
     expect(document.body.textContent).not.toContain('Loading settings…');
 
     retry.click();
-    await waitFor('.stat-strip');
+    await waitFor('.disclosure');
     expect(attempts).toBe(2);
     expect(document.querySelector('[data-notice]')).toBeNull();
   });
 
-  it('lists enabled custom sets in source order and labels complementary landmarks', async () => {
+  it('lists enabled custom sets in load order and labels complementary landmarks', async () => {
+    window.history.replaceState({}, '', '#bindings');
     await import('../src/entrypoints/options/main');
     await vi.waitFor(() => expect(document.querySelectorAll('.source-row')).toHaveLength(5));
 
     const rows = [...document.querySelectorAll('.source-row')];
     expect(rows.map((row) => row.querySelector('.source-name')?.textContent)).toEqual([
-      'Per-chat binding',
-      'Global binding',
+      'Per-chat',
+      'Global sets',
       '7TV channel',
       'Custom sets',
-      'Provider globals',
+      'Providers',
     ]);
     expect(rows[3]?.querySelector('.source-value')?.textContent).toBe('1 set');
     expect(rows[3]?.querySelector('.source-value')?.className).toContain('active');
@@ -220,7 +247,7 @@ describe('options UI', () => {
     const labels = [...document.querySelectorAll('aside')].map((aside) =>
       aside.getAttribute('aria-label'),
     );
-    expect(labels).toEqual(['Options sidebar', 'Overview details']);
+    expect(labels).toEqual(['Options sidebar', 'Set details']);
     expect(new Set(labels).size).toBe(labels.length);
   });
 
@@ -268,7 +295,7 @@ describe('options UI', () => {
     await import('../src/entrypoints/options/main');
 
     const setLink = await vi.waitFor(() => {
-      const link = document.querySelector<HTMLAnchorElement>('.set-link');
+      const link = document.querySelector<HTMLAnchorElement>('.set-row-link');
       expect(link).not.toBeNull();
       return link as HTMLAnchorElement;
     });
@@ -276,12 +303,15 @@ describe('options UI', () => {
 
     window.location.hash = '#sources';
     const button = await waitFor<HTMLButtonElement>('.plugin-details');
-    expect(button.textContent).toContain('A long plugin description');
+    expect(button.getAttribute('aria-label')).toBe('Details for Chat');
+    expect(button.closest('.row')?.textContent).toContain('A long plugin description');
 
     const dialog = button.closest('.row')?.querySelector('dialog') as HTMLDialogElement;
     expect(dialog.textContent).toContain('A long plugin description with the full selector details.');
     expect(dialog.textContent).toContain('https://five.example/*');
     expect(dialog.querySelector('a[href="https://example.test/plugin"]')).not.toBeNull();
+    expect(dialog.querySelector('.plugin-dialog-actions .switch input')).not.toBeNull();
+    expect(dialog.querySelector('.plugin-dialog-actions .btn.danger')?.textContent).toBe('Remove');
 
     Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
       configurable: true,
@@ -295,16 +325,43 @@ describe('options UI', () => {
 
   it('focuses the new heading after hash navigation', async () => {
     await import('../src/entrypoints/options/main');
-    await waitFor('.stat-strip');
-    const link = document.querySelector<HTMLAnchorElement>('#nav-sources')!;
+    await waitFor('.disclosure');
+    const link = document.querySelector<HTMLAnchorElement>('#nav-help')!;
     link.focus();
 
-    window.location.hash = '#sources';
-    await waitFor('.disclosure');
+    window.location.hash = '#help';
+    await vi.waitFor(() => expect(document.querySelector('.view h1')?.textContent).toBe('Help'));
 
     const heading = document.querySelector<HTMLElement>('.view h1')!;
-    expect(heading.textContent).toBe('Sources');
     expect(heading.getAttribute('tabindex')).toBe('-1');
     expect(document.activeElement).toBe(heading);
+  });
+
+  it('skips to the heading and reports mobile menu state', async () => {
+    await import('../src/entrypoints/options/main');
+    await waitFor('.disclosure');
+
+    const skip = document.querySelector<HTMLButtonElement>('.skip-link')!;
+    expect(skip).not.toBeNull();
+    skip.click();
+    expect(document.activeElement).toBe(document.querySelector('.view h1'));
+    expect(document.querySelector('.view h1')?.getAttribute('tabindex')).toBe('-1');
+
+    const menu = document.querySelector<HTMLButtonElement>('.menu-button')!;
+    const dialog = document.querySelector<HTMLDialogElement>('#nav-dialog')!;
+    expect(menu.getAttribute('aria-controls')).toBe('nav-dialog');
+    expect(menu.getAttribute('aria-expanded')).toBe('false');
+
+    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        this.setAttribute('open', '');
+      },
+    });
+    menu.click();
+    expect(menu.getAttribute('aria-expanded')).toBe('true');
+
+    dialog.dispatchEvent(new Event('close'));
+    expect(menu.getAttribute('aria-expanded')).toBe('false');
   });
 });

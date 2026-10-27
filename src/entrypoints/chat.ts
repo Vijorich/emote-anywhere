@@ -6,12 +6,17 @@ import type {
   AppState,
   ChatRegistration,
   ContentContext,
+  PluginDescriptor,
   PluginMatch,
 } from '../core/types';
 import { urlMatchesAny } from '../core/url-match';
-import type { ChannelRule } from '../core/types';
+import type { ChannelRule, CustomSet } from '../core/types';
 import { ChatEngine } from '../engine/engine';
+import { queryAllFirst } from '../engine/dom';
 import { EmotePicker } from '../picker/picker';
+
+const CHAT_SURFACE_POLL_MS = 500;
+const CHAT_SURFACE_WAIT_MS = 15_000;
 
 declare global {
   interface Window {
@@ -29,8 +34,41 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+/**
+ * Frames without a chat root (and without any message markup) cannot render
+ * emotes. Registering there costs a full emote resolve and a large RPC payload.
+ */
+export function hasChatSurface(descriptor: PluginDescriptor): boolean {
+  const roots = descriptor.chat.roots;
+  if (!roots?.length) return true;
+  return queryAllFirst(document, [...roots, ...descriptor.chat.messages]).length > 0;
+}
+
 function valueChanged(before: unknown, after: unknown): boolean {
   return JSON.stringify(before) !== JSON.stringify(after);
+}
+
+/**
+ * Custom sets are immutable apart from add/remove/toggle, so identity, enabled
+ * state and size are a complete signature. Avoids stringifying up to 20k emotes
+ * in every frame on every state write.
+ */
+function customSetsChanged(before: CustomSet[], after: CustomSet[]): boolean {
+  if (before.length !== after.length) return true;
+  for (let index = 0; index < before.length; index += 1) {
+    const left = before[index];
+    const right = after[index];
+    if (
+      !left ||
+      !right ||
+      left.id !== right.id ||
+      left.enabled !== right.enabled ||
+      left.emotes.length !== right.emotes.length
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function shouldSyncStateChange(
@@ -44,7 +82,7 @@ export function shouldSyncStateChange(
   if (
     valueChanged(before.settings, after.settings) ||
     valueChanged(before.globalBinding, after.globalBinding) ||
-    valueChanged(before.customSets, after.customSets)
+    customSetsChanged(before.customSets, after.customSets)
   ) {
     return true;
   }
@@ -112,6 +150,21 @@ function start(): void {
     return undefined;
   };
 
+  const waitForChatSurface = async (
+    descriptor: PluginDescriptor,
+    globalMode: boolean,
+    current: number,
+  ): Promise<boolean> => {
+    if (globalMode || !descriptor.chat.roots?.length) return true;
+    const started = Date.now();
+    while (current === generation) {
+      if (hasChatSurface(descriptor)) return true;
+      if (Date.now() - started >= CHAT_SURFACE_WAIT_MS) return false;
+      await sleep(CHAT_SURFACE_POLL_MS);
+    }
+    return false;
+  };
+
   const sync = async (): Promise<void> => {
     const current = ++generation;
     teardown();
@@ -127,6 +180,17 @@ function start(): void {
     }
     if (current !== generation) return;
     if (!match) {
+      publishContext(null);
+      return;
+    }
+
+    const surfaceReady = await waitForChatSurface(
+      match.descriptor,
+      match.settings.globalMode,
+      current,
+    );
+    if (current !== generation) return;
+    if (!surfaceReady) {
       publishContext(null);
       return;
     }

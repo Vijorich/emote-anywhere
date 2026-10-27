@@ -175,17 +175,23 @@ describe('popup UI', () => {
     await import('../src/entrypoints/popup/main');
 
     await vi.waitFor(() =>
-      expect(document.querySelector('.panel-head .mono')?.textContent).toBe('frame-chat'),
+      expect(document.querySelector('.panel-head .mono')?.textContent).toBe('Channel frame-chat'),
     );
   });
 
   it('clears presentation lookups before Reload emotes refreshes previews', async () => {
     currentState.plugins.b!.enabled = true;
-    currentState.globalBinding.sets = ['set'];
+    currentState.bindings['b|default'] = {
+      key: 'b|default',
+      pluginKey: 'b',
+      channelKey: 'default',
+      label: 'Chat B · default',
+      sets: ['set'],
+    };
     setName = 'Before';
     await import('../src/entrypoints/popup/main');
     await vi.waitFor(() =>
-      expect(document.querySelector('.global-row .row-title')?.textContent).toBe('Before'),
+      expect(document.querySelector('.chip-label')?.textContent).toBe('Before'),
     );
     setName = 'After';
     const reload = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
@@ -194,7 +200,7 @@ describe('popup UI', () => {
 
     reload.click();
     await vi.waitFor(
-      () => expect(document.querySelector('.global-row .row-title')?.textContent).toBe('After'),
+      () => expect(document.querySelector('.chip-label')?.textContent).toBe('After'),
       { timeout: 2000 },
     );
 

@@ -24,10 +24,10 @@ export function normalizeRegistryUrl(input: string): string {
   try {
     parsed = new URL(input.trim());
   } catch {
-    throw new Error('Registry URL is not valid');
+    throw new Error('Enter a full registry URL that starts with http:// or https://.');
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error('Registry URL must use http or https');
+    throw new Error('Registry URL must start with http:// or https://.');
   }
   return parsed.toString();
 }
@@ -82,7 +82,11 @@ async function fetchRegistryResult(url: string, force: boolean): Promise<Registr
         redirect: 'follow',
         signal: AbortSignal.timeout(15_000),
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        throw new Error(
+          `Registry returned HTTP ${response.status}. Check the URL and try again.`,
+        );
+      }
       const body = await readRegistryBody(response);
       let parsed: unknown;
       try {
@@ -240,7 +244,7 @@ export async function addRegistry(urlInput: string, nameInput: string): Promise<
 
   await mutateState((state) => {
     if (state.registries.some((registry) => registry.url === url)) {
-      throw new Error('This registry is already added');
+      throw new Error('This registry is already added. Remove it first or use a different URL.');
     }
     const registry: RegistryRef = {
       id,
@@ -276,7 +280,7 @@ export async function removeRegistry(id: string): Promise<void> {
 export async function refreshOneRegistry(id: string): Promise<Record<string, string>> {
   const state = await getState();
   const registry = state.registries.find((item) => item.id === id);
-  if (!registry) throw new Error('Registry not found');
+  if (!registry) throw new Error('Registry not found. Refresh Sources and try again.');
   const index = await fetchRegistry(registry.url, true);
   await mutateState((next) => {
     const target = next.registries.find((item) => item.id === id);

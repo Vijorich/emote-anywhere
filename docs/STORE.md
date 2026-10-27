@@ -1,12 +1,12 @@
 # Store publishing
 
 Release builds are produced by `.github/workflows/release.yml` when the version in
-`package.json` changes on `main`. It creates tag `v<version>`, runs all checks and
-attaches these files to the GitHub release:
+`package.json` changes on `main`. It creates the tag `v<version>`, runs all checks
+and attaches these files to the GitHub release:
 
-- `emote-anywhere-<version>-chrome.zip` — Chrome Web Store and Microsoft Edge Add-ons
-- `emote-anywhere-<version>-firefox.zip` — Firefox Add-ons (AMO)
-- `emote-anywhere-<version>-sources.zip` — AMO source review
+- `emote-anywhere-<version>-chrome.zip`: Chrome Web Store and Microsoft Edge Add-ons
+- `emote-anywhere-<version>-firefox.zip`: Firefox Add-ons (AMO)
+- `emote-anywhere-<version>-sources.zip`: AMO source review
 
 Bump `version`, add a `CHANGELOG.md` entry, and push. Do not create the tag by hand.
 
@@ -15,34 +15,34 @@ Bump `version`, add a `CHANGELOG.md` entry, and push. Do not create the tag by h
 **Name:** Emote Anywhere
 
 **Short description (132 chars):**
-7TV, BTTV and FFZ emotes in any chat. Site support is a declarative plugin, not an
-extension update.
+7TV, BTTV and FFZ emotes in VK Messenger and other chats with a plugin. Site support
+updates without an extension release.
 
 **Category:** Social & Communication (Chrome), Social & Communication (Edge),
 Chat & IM (Firefox)
 
 **Detailed description:**
 
-> Bring 7TV, BTTV and FrankerFaceZ emotes to any chat.
+> Bring 7TV, BTTV and FrankerFaceZ emotes to VK Messenger and other chats with a
+> plugin.
 >
 > Emote Anywhere renders the emote sets you already use directly in the page. Open the
-> built-in picker to search a set and insert an emote, bind sets per chat, or add a
+> built-in picker to search a set and insert an emote, add sets per chat, or add a
 > global set that loads everywhere.
 >
-> Site support is not hard-coded into the extension. Each chat is described by a
-> declarative JSON plugin, so selectors can be fixed without shipping a new extension
-> version. VK Messenger is supported today; more chats can be added through the public
-> registry.
+> Site support comes from plugins, not extension updates. VK Messenger is supported
+> today; more chats can be added through the public registry.
 >
 > • 7TV, BTTV and FFZ global emotes
-> • Per-chat and global 7TV set bindings
+> • Global and per-chat sets
 > • Searchable emote picker with keyboard navigation
 > • Adjustable emote size
 > • Custom emote sets
 > • No account, no telemetry, no backend
 >
-> The extension has no access to a chat site until you enable its plugin. Chat text
-> never leaves the page.
+> The extension does not read chat messages until you enable a plugin. Opening the
+> popup reads the active tab URL; host access is requested per plugin. Chat text never
+> leaves the page.
 >
 > Open source: https://github.com/Vijorich/emote-anywhere
 
@@ -54,13 +54,14 @@ Chat & IM (Firefox)
 
 ## Permission justifications
 
-- **storage** — save settings, enabled plugins, bindings and the emote cache locally.
-- **scripting** — register the content script only for enabled plugin hosts.
-- **activeTab** — read the active tab URL so the popup can show the current chat.
-- **Host access to 7TV/BTTV/FFZ CDNs** — background image proxy for sites whose CSP
+- **storage**: save settings, enabled plugins, chat sets and the emote cache locally.
+- **scripting**: register the content script only for enabled plugin hosts.
+- **activeTab**: read the active tab URL so the popup can show the current chat.
+- **Host access to 7TV/BTTV/FFZ CDNs**: background image proxy for sites whose CSP
   blocks third-party images.
-- **Optional host access (`*://*/*`)** — requested per plugin when the user enables it.
-  The extension has no site access before that.
+- **Optional host access (`*://*/*`)**: the manifest allows any origin, but the
+  extension requests only the enabled plugin's origins. It does not read chat messages
+  before that.
 
 ## Screenshots
 

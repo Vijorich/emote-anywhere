@@ -1,57 +1,34 @@
-import { browser } from 'wxt/browser';
 import { PLUGIN_DOC_URL, PRIVACY_URL, PROJECT_URL, RELEASES_URL } from '../../../core/config';
-import type { AppState } from '../../../core/types';
 import { h } from '../../../ui/dom';
-import type { OptionsContext } from '../context';
 
-export function helpView(current: AppState, ctx: OptionsContext): HTMLElement {
-  const builtin = current.registries.find((registry) => registry.builtin);
-  const registryUrl = builtin?.url ?? 'not configured';
-
+export function helpView(): HTMLElement {
   return h(
     'main',
     { class: 'view' },
-    ctx.noticeBanner(),
-    h(
-      'header',
-      { class: 'view-head' },
-      h('h1', { text: 'Help' }),
-      h('p', {
-        class: 'lede',
-        text: 'Site support is a declarative plugin, not bundled code. Registries can be fixed without an extension update.',
-      }),
-    ),
+    h('header', { class: 'view-head' }, h('h1', { text: 'Help' })),
     h(
       'div',
       { class: 'help-grid' },
       h(
         'section',
         { class: 'section' },
-        h('h2', { text: 'Plugins' }),
+        h('h2', { text: 'About' }),
         h(
           'div',
-          { class: 'panel' },
+          { class: 'panel about-panel' },
           h('p', {
             class: 'section-note',
-            text: 'A plugin is JSON: match patterns, chat selectors, how to read a channel key and where the composer lives. It cannot execute code or read outside the selectors it declares.',
+            text: 'Emote images come from 7TV, BetterTTV, FrankerFaceZ or a custom set you add. The extension has no accounts or analytics. Chat text stays on the page.',
           }),
-          h('p', { class: 'field-label', text: 'Default registry' }),
-          h(
-            'div',
-            { class: 'copy-row' },
-            h('code', { class: 'mono', text: registryUrl }),
-            h('button', {
-              class: 'btn tiny',
-              type: 'button',
-              text: 'Copy',
-              onclick: () => {
-                void navigator.clipboard
-                  .writeText(registryUrl)
-                  .then(() => ctx.show('Registry URL copied'))
-                  .catch(() => ctx.show('Could not copy the URL', 'error'));
-              },
-            }),
-          ),
+        ),
+      ),
+      h(
+        'section',
+        { class: 'section' },
+        h('h2', { text: 'Links' }),
+        h(
+          'div',
+          { class: 'panel links-panel' },
           h(
             'div',
             { class: 'form-actions' },
@@ -62,69 +39,25 @@ export function helpView(current: AppState, ctx: OptionsContext): HTMLElement {
           ),
         ),
       ),
-      h(
-        'section',
-        { class: 'section' },
-        h('h2', { text: 'About' }),
-        h(
-          'div',
-          { class: 'panel' },
-          h('p', {
-            class: 'section-note',
-            text: 'Emote images come from 7TV, BTTV and FFZ. There is no backend and no telemetry; chat text never leaves the page.',
-          }),
-          h('p', {
-            class: 'section-note',
-            text: `Emote Anywhere v${browser.runtime.getManifest().version} · IBM Plex typefaces under the SIL Open Font License.`,
-          }),
-        ),
-      ),
     ),
     h(
       'section',
       { class: 'section' },
-      h('h2', { text: 'Picker' }),
-      h(
-        'div',
-        { class: 'panel' },
-        h(
-          'div',
-          { class: 'shortcut' },
-          h('span', { class: 'row-title', text: 'Open the emote picker' }),
-          h('span', { class: 'keys', text: 'Click the picker button in the chat' }),
-        ),
-        h(
-          'div',
-          { class: 'shortcut' },
-          h('span', { class: 'row-title', text: 'Insert the selected emote' }),
-          h('span', { class: 'keys' }, h('kbd', { text: 'Enter' })),
-        ),
-        h(
-          'div',
-          { class: 'shortcut' },
-          h('span', { class: 'row-title', text: 'Close the picker' }),
-          h('span', { class: 'keys' }, h('kbd', { text: 'Esc' })),
-        ),
-      ),
-    ),
-    h(
-      'section',
-      { class: 'section' },
-      h('h2', { text: 'Troubleshooting' }),
+      h('h2', { text: 'Problems' }),
       h(
         'div',
         { class: 'trouble-grid' },
         troubleRow(
-          'A chat shows no emotes',
-          'Enable the site plugin and allow its host permission in Sources, then reload the tab.',
+          'No emotes',
+          "Enable the site's plugin in Sources, then reload the tab.",
         ),
         troubleRow(
-          'Emote images stay blank',
-          'Some sites block external image hosts. A plugin with proxyImages fetches the image through the extension.',
+          'Images show as text',
+          'The site blocks third-party images. Report it to the plugin author; the plugin needs image proxying for this site.',
         ),
         troubleRow(
-          'A set did not update',
-          'Clear the emote cache in Settings. Sets are cached for one hour.',
+          'Outdated emotes',
+          'Clear the cache in Settings, then choose Reload emotes in the popup.',
         ),
       ),
     ),

@@ -26,10 +26,10 @@ const preview = EMOTES.map(([code, id]) => ({
 const vk: PluginDescriptor = {
   schemaVersion: 1,
   id: 'vk',
-  name: 'VK Messenger',
+  name: 'VK',
   version: '0.2.0',
   description:
-    'VK web messenger (vk.ru / vk.com). Messages are read from the Convo history; images are proxied because VK blocks external image hosts.',
+    'VK Messenger on vk.com and vk.ru. Emotes render in chats. Images load through the extension because VK blocks external image hosts.',
   priority: 20,
   proxyImages: true,
   matches: ['https://vk.com/*', 'https://*.vk.com/*', 'https://vk.ru/*', 'https://*.vk.ru/*'],
@@ -83,7 +83,7 @@ let state: AppState = {
       key: 'default:vk|371502952',
       pluginKey: 'default:vk',
       channelKey: '371502952',
-      label: 'VK Messenger · 371502952',
+      label: 'VK · 371502952',
       sets: [SET_ID],
     },
   },
@@ -220,7 +220,7 @@ function installChrome(): void {
   const chrome = {
     runtime: {
       id: 'preview',
-      getManifest: () => ({ version: '0.2.0' }),
+      getManifest: () => ({ version: '0.3.0' }),
       getURL: (path: string) => path,
       sendMessage: async (request: RpcRequest) => {
         try {

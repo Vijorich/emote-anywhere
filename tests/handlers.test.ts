@@ -11,13 +11,19 @@ const state = vi.hoisted(() => ({
 
 const permissions = vi.hoisted(() => ({ contains: vi.fn() }));
 
+const resolver = vi.hoisted(() => ({
+  resolveEmotes: vi.fn(),
+  lookupSevenTvSet: vi.fn(),
+}));
+
 vi.mock('wxt/browser', () => ({
   browser: { permissions },
 }));
 
 vi.mock('../src/core/state', () => state);
+vi.mock('../src/core/emotes/resolve', () => resolver);
 
-import { handleRpc } from '../src/background/handlers';
+import { clearRegistrationCache, handleRpc } from '../src/background/handlers';
 
 const settings: AppSettings = {
   globalMode: false,
@@ -27,8 +33,40 @@ const settings: AppSettings = {
   providers: { sevenTv: true, bttv: true, ffz: true },
 };
 
+function stateWithChat(): AppState {
+  return {
+    version: 1,
+    settings,
+    registries: [],
+    plugins: {
+      'r:chat': {
+        key: 'r:chat',
+        registryId: 'r',
+        enabled: true,
+        addedAt: 0,
+        updatedAt: 0,
+        descriptor: {
+          schemaVersion: 1,
+          id: 'chat',
+          name: 'Chat',
+          version: '1.0.0',
+          matches: ['https://chat.example/*'],
+          chat: {
+            messages: ['.message'],
+            channel: { from: 'constant', value: 'chat' },
+          },
+        },
+      },
+    },
+    bindings: {},
+    globalBinding: { sets: [] },
+    customSets: [],
+  };
+}
+
 beforeEach(async () => {
   await clearFrameContexts();
+  clearRegistrationCache();
   state.getState.mockReset();
   state.mutateState.mockReset();
   state.updateSettings.mockReset();
@@ -36,6 +74,8 @@ beforeEach(async () => {
     return { settings: { ...settings, ...patch } } as AppState;
   });
   permissions.contains.mockReset();
+  resolver.resolveEmotes.mockReset();
+  resolver.lookupSevenTvSet.mockReset();
 });
 
 describe('RPC boundaries', () => {
@@ -179,6 +219,57 @@ describe('RPC boundaries', () => {
     await expect(handleRpc({ type: 'frame/contexts', tabId: -1 }, null)).rejects.toThrow(
       'Invalid tab id',
     );
+  });
+
+  it('reuses resolved emotes across frames until their inputs change', async () => {
+    const appState = stateWithChat();
+    state.getState.mockResolvedValue(appState);
+    resolver.resolveEmotes.mockResolvedValue({
+      emotes: [{ code: 'peepoSad', url: 'https://cdn.example/e.png', flags: 0, provider: '7tv' }],
+      sources: ['7tv:global'],
+      errors: [],
+    });
+    const request = {
+      type: 'chat/register' as const,
+      pluginKey: 'r:chat',
+      channelKey: 'chan',
+    };
+
+    const first = (await handleRpc(request, null)) as {
+      emotes: Array<Record<string, unknown>>;
+    };
+    await handleRpc(request, null);
+    expect(resolver.resolveEmotes).toHaveBeenCalledTimes(1);
+    expect(first.emotes[0]).toEqual({
+      code: 'peepoSad',
+      url: 'https://cdn.example/e.png',
+      flags: 0,
+    });
+
+    const changed = structuredClone(appState);
+    changed.settings.providers.bttv = false;
+    state.getState.mockResolvedValue(changed);
+    await handleRpc(request, null);
+    expect(resolver.resolveEmotes).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not cache registrations with provider errors', async () => {
+    state.getState.mockResolvedValue(stateWithChat());
+    resolver.resolveEmotes.mockResolvedValue({
+      emotes: [],
+      sources: [],
+      errors: ['7tv:global: HTTP 503'],
+    });
+    const request = {
+      type: 'chat/register' as const,
+      pluginKey: 'r:chat',
+      channelKey: 'chan',
+    };
+
+    await handleRpc(request, null);
+    await handleRpc(request, null);
+
+    expect(resolver.resolveEmotes).toHaveBeenCalledTimes(2);
   });
 
   it('rejects an unknown RPC request', async () => {

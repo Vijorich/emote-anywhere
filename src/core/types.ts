@@ -132,6 +132,9 @@ export interface Emote {
   provider: EmoteProvider;
 }
 
+/** Emote payload for content scripts; provider is only needed in the background. */
+export type ChatEmote = Pick<Emote, 'code' | 'url' | 'flags'>;
+
 export interface ResolvedEmotes {
   emotes: Emote[];
   sources: string[];
@@ -145,7 +148,7 @@ export interface PluginMatch {
 }
 
 export interface ChatRegistration {
-  emotes: Emote[];
+  emotes: ChatEmote[];
   sources: string[];
   errors: string[];
   binding: Binding | null;

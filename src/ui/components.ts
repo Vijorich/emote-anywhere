@@ -1,14 +1,15 @@
 import { h } from './dom';
 
 const MARK = `
-<svg class="brand-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-  <path d="M5.5 4.5h13A2.5 2.5 0 0 1 21 7v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.7 3.2.9-3.2H5.5A2.5 2.5 0 0 1 3 15V7a2.5 2.5 0 0 1 2.5-2.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-  <circle cx="8.5" cy="10.4" r="1.1" fill="currentColor"/>
-  <circle cx="15.5" cy="10.4" r="1.1" fill="currentColor"/>
-  <path d="M8.7 13.3c.9 1.2 2 1.8 3.3 1.8s2.4-.6 3.3-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+<svg class="brand-mark" viewBox="0 0 16 16" aria-hidden="true">
+  <rect width="16" height="16" rx="3.5" fill="#17694e"/>
+  <circle cx="8" cy="7.5" r="5.4" fill="#f0f5f1"/>
+  <circle cx="5.6" cy="5.9" r="1.1" fill="#17694e"/>
+  <circle cx="10.4" cy="5.9" r="1.1" fill="#17694e"/>
+  <path d="M5.4 9.1c.6 1 1.5 1.6 2.6 1.6s2-.6 2.6-1.6" fill="none" stroke="#17694e" stroke-width="1.25" stroke-linecap="round"/>
 </svg>`;
 
-/** The product mark: a chat bubble with a face, drawn from the name. */
+/** Inline SVG so the mark inherits currentColor. */
 export function brandMark(): SVGElement {
   const template = document.createElement('template');
   template.innerHTML = MARK.trim();
@@ -16,7 +17,7 @@ export function brandMark(): SVGElement {
 }
 
 export function brand(): HTMLElement {
-  return h('a', { class: 'brand', href: '#overview' }, brandMark(), h('span', { class: 'brand-name', text: 'Emote Anywhere' }));
+  return h('a', { class: 'brand', href: '#sources' }, brandMark(), h('span', { class: 'brand-name', text: 'Emote Anywhere' }));
 }
 
 export function pill(text: string, tone: 'ok' | 'warn' | 'err' | 'neutral' = 'neutral'): HTMLElement {
@@ -27,6 +28,7 @@ export interface SwitchOptions {
   title: string;
   description?: string;
   ariaLabel?: string;
+  focusKey?: string;
   checked: boolean;
   disabled?: boolean;
   onChange: (checked: boolean) => void;
@@ -38,6 +40,7 @@ export function switchRow(options: SwitchOptions): HTMLLabelElement {
     checked: options.checked,
     disabled: options.disabled,
     'aria-label': options.ariaLabel,
+    'data-focus-key': options.focusKey,
     on: {
       change: (event: Event) => {
         options.onChange((event.currentTarget as HTMLInputElement).checked);

@@ -5,9 +5,9 @@
     {
       "schemaVersion": 1,
       "id": "vk",
-      "name": "VK Messenger",
+      "name": "VK",
       "version": "0.2.0",
-      "description": "VK web messenger (vk.ru / vk.com). Messages are read from the Convo history; images are proxied because VK blocks external image hosts.",
+      "description": "VK Messenger on vk.com and vk.ru. Emotes render in chats. Images load through the extension because VK blocks external image hosts.",
       "priority": 20,
       "proxyImages": true,
       "matches": [

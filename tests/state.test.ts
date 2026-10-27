@@ -5,13 +5,20 @@ import type { AppState } from '../src/core/types';
 const storage = vi.hoisted(() => ({
   get: vi.fn(),
   set: vi.fn(),
+  onChanged: { addListener: vi.fn() },
 }));
 
 vi.mock('wxt/browser', () => ({
-  browser: { storage: { local: storage } },
+  browser: { storage: { local: storage, onChanged: storage.onChanged } },
 }));
 
-import { createDefaultState, getState, mutateState } from '../src/core/state';
+import {
+  createDefaultState,
+  getState,
+  mutateState,
+  onStateStorageChanged,
+  resetStateCache,
+} from '../src/core/state';
 
 function mockStorage(initial: Record<string, unknown> = {}): () => Record<string, unknown> {
   let values = structuredClone(initial);
@@ -23,6 +30,7 @@ function mockStorage(initial: Record<string, unknown> = {}): () => Record<string
 }
 
 beforeEach(() => {
+  resetStateCache();
   storage.get.mockReset();
   storage.set.mockReset();
 });
@@ -48,6 +56,28 @@ describe('state storage', () => {
     expect(storage.get).toHaveBeenCalledWith(STATE_KEY);
     expect(storage.set).not.toHaveBeenCalled();
     expect(stored()[STATE_KEY]).toBeUndefined();
+  });
+
+  it('memoizes the normalized state between reads', async () => {
+    mockStorage({ [STATE_KEY]: createDefaultState() });
+
+    await getState();
+    await getState();
+
+    expect(storage.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops the cache when another context writes state', async () => {
+    const stored = mockStorage({ [STATE_KEY]: createDefaultState() });
+    expect((await getState()).settings.globalMode).toBe(false);
+
+    const next = createDefaultState();
+    next.settings.globalMode = true;
+    stored()[STATE_KEY] = next;
+    onStateStorageChanged({ [STATE_KEY]: { newValue: next } }, 'local');
+
+    expect((await getState()).settings.globalMode).toBe(true);
+    expect(storage.get).toHaveBeenCalledTimes(2);
   });
 
   it('rejects when storage cannot be read, without writing defaults', async () => {

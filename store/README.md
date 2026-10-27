@@ -1,22 +1,24 @@
 # Store screenshots
 
 Generated from the standalone UI preview with mock data, so no personal chat
-content is included. All images are 1280×800 PNG, the size required by the Chrome
-Web Store.
+content is included. All images are 1280×800 PNG, a size accepted by the Chrome Web
+Store. The Sources screenshot includes a demo custom set named "Stream faces"; it is
+mock data, not a shipped set.
 
 | File | Screen |
 | --- | --- |
-| `01-overview.png` | Overview with providers, global binding and plugin state |
-| `02-sources.png` | Provider globals, custom sets and registries |
-| `03-bindings.png` | Global and per-chat 7TV bindings |
-| `04-settings.png` | Behavior, emote size and cache maintenance |
+| `01-sources.png` | Providers, custom sets and registries |
+| `02-bindings.png` | Chat sets: global and per-chat |
+| `03-settings.png` | Chat options, emote size and cache |
+| `04-help.png` | Links and common problems |
 
 Regenerate:
 
 ```bash
 pnpm preview
-# open http://localhost:5199/options.html#overview and the other hash routes
-# capture at 1280×800, then crop the viewport to 1280×800
+# open http://localhost:5199/options.html?theme=dark#sources
+# #bindings, #settings, #help for the other screens
+# capture at 1280×800
 ```
 
 The mock extension API lives in `dev/ui/mock.ts`. Nothing in this folder is

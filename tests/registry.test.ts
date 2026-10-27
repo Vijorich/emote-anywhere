@@ -6,7 +6,7 @@ import {
   REGISTRY_TTL_MS,
   STATE_KEY,
 } from '../src/core/config';
-import { createDefaultState, getState } from '../src/core/state';
+import { createDefaultState, getState, resetStateCache } from '../src/core/state';
 import type {
   AppState,
   Binding,
@@ -95,6 +95,7 @@ function registryUrl(): string {
 }
 
 beforeEach(() => {
+  resetStateCache();
   mocks.data = {};
   vi.clearAllMocks();
   vi.stubGlobal('fetch', vi.fn());
@@ -192,11 +193,15 @@ describe('registry refresh', () => {
     now += REGISTRY_TTL_MS + 1;
     vi.mocked(fetch).mockResolvedValueOnce(new Response('', { status: 503 }));
 
-    expect(await refreshRegistries(false)).toEqual({ r: 'HTTP 503' });
+    expect(await refreshRegistries(false)).toEqual({
+      r: 'Registry returned HTTP 503. Check the URL and try again.',
+    });
 
     const next = await getState();
     expect(next.registries[0]?.lastCheckedAt).toBe(1_000_000);
-    expect(next.registries[0]?.lastError).toBe('HTTP 503');
+    expect(next.registries[0]?.lastError).toBe(
+      'Registry returned HTTP 503. Check the URL and try again.',
+    );
     expect(Object.keys(next.plugins)).toEqual(['r:local']);
     expect(next.plugins['r:local']?.updatedAt).toBe(20);
     expect(Object.keys(next.bindings)).toEqual(['local']);
@@ -214,11 +219,15 @@ describe('registry refresh', () => {
     mocks.data[STATE_KEY] = state;
     vi.mocked(fetch).mockResolvedValueOnce(new Response('', { status: 500 }));
 
-    expect(await refreshRegistries(true)).toEqual({ r: 'HTTP 500' });
+    expect(await refreshRegistries(true)).toEqual({
+      r: 'Registry returned HTTP 500. Check the URL and try again.',
+    });
 
     const next = await getState();
     expect(next.registries[0]?.lastCheckedAt).toBe(50);
-    expect(next.registries[0]?.lastError).toBe('HTTP 500');
+    expect(next.registries[0]?.lastError).toBe(
+      'Registry returned HTTP 500. Check the URL and try again.',
+    );
     expect(Object.keys(next.plugins)).toEqual(['r:local']);
     expect(Object.keys(next.bindings)).toEqual(['local']);
   });
@@ -242,7 +251,9 @@ describe('registry refresh', () => {
     resolveFirst(json(index('fresh')));
 
     expect(await normal).toEqual({});
-    expect(await forced).toEqual({ r: 'HTTP 502' });
+    expect(await forced).toEqual({
+      r: 'Registry returned HTTP 502. Check the URL and try again.',
+    });
   });
 
   it('syncs content scripts even when no registry needs refresh', async () => {

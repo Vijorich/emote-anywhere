@@ -1,8 +1,22 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings, Emote, PluginDescriptor } from '../src/core/types';
+import { combineSelectors } from '../src/engine/dom';
 import { ChatEngine } from '../src/engine/engine';
 import { insertIntoComposer } from '../src/picker/insert';
+
+const tokenizeCalls = vi.hoisted(() => ({ count: 0 }));
+
+vi.mock('../src/engine/tokenize', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/engine/tokenize')>();
+  return {
+    ...actual,
+    tokenizeText: (...args: Parameters<typeof actual.tokenizeText>) => {
+      tokenizeCalls.count += 1;
+      return actual.tokenizeText(...args);
+    },
+  };
+});
 
 const settings: Pick<AppSettings, 'globalMode' | 'emoteScale'> = {
   globalMode: false,
@@ -82,6 +96,20 @@ describe('ChatEngine', () => {
     instance.stop();
   });
 
+  it('combines valid selectors into one match call', () => {
+    expect(combineSelectors(['.a', '>>bad', '.b'])).toBe('.a,.b');
+    expect(combineSelectors(['>>bad'])).toBeNull();
+  });
+
+  it('keeps working when one exclusion selector is invalid', () => {
+    document.body.innerHTML = `
+      <div class="msg"><span class="body">peepoSad</span><code>peepoSad</code></div>
+    `;
+    const instance = engine(descriptor({ exclude: ['>>bad', 'code'] }));
+    expect(document.querySelectorAll('.msg .ea-e')).toHaveLength(1);
+    instance.stop();
+  });
+
   it('skips messages matching skip selectors', () => {
     document.body.innerHTML = `
       <div class="msg deleted"><span class="body">peepoSad</span></div>
@@ -100,6 +128,17 @@ describe('ChatEngine', () => {
     instance.stop();
   });
 
+  it('does not reprocess the DOM it rendered itself', async () => {
+    document.body.innerHTML = `<div class="msg"><span class="body">hi peepoSad</span></div>`;
+    const query = vi.spyOn(Element.prototype, 'querySelector');
+    const instance = engine();
+    await wait();
+
+    const renderedChecks = query.mock.calls.filter(([selector]) => selector === '.ea-e');
+    expect(renderedChecks).toHaveLength(0);
+    instance.stop();
+  });
+
   it('restores emotes when stopped', () => {
     document.body.innerHTML = `<div class="msg"><span class="body">hi peepoSad</span></div>`;
     const instance = engine();
@@ -109,6 +148,51 @@ describe('ChatEngine', () => {
 
     expect(document.querySelectorAll('.ea-e')).toHaveLength(0);
     expect(document.querySelector('.body')?.textContent).toBe('hi peepoSad');
+  });
+
+  it('shows the emote code until its image loads', () => {
+    document.body.innerHTML = `<div class="msg"><span class="body">peepoSad</span></div>`;
+    const instance = engine();
+    const span = document.querySelector<HTMLElement>('.ea-e');
+    const image = span?.querySelector('img');
+    expect(span?.textContent).toBe('peepoSad');
+    expect(image?.style.display).toBe('none');
+
+    image?.dispatchEvent(new Event('load'));
+
+    expect(span?.textContent).toBe('');
+    expect(image?.style.display).toBe('block');
+    instance.stop();
+  });
+
+  it('keeps a bottom-scrolled chat at the bottom after rendering', () => {
+    document.body.innerHTML = `
+      <div class="scroll"><div class="msg"><span class="body">peepoSad</span></div></div>
+    `;
+    const scroll = document.querySelector<HTMLElement>('.scroll')!;
+    Object.defineProperty(scroll, 'clientHeight', { value: 500, configurable: true });
+    Object.defineProperty(scroll, 'scrollHeight', {
+      configurable: true,
+      get: () => (scroll.querySelector('.ea-e') ? 1040 : 1000),
+    });
+    scroll.scrollTop = 500;
+
+    const instance = engine();
+
+    expect(scroll.scrollTop).toBe(540);
+    instance.stop();
+  });
+
+  it('renders appended emotes in the mutation microtask', async () => {
+    document.body.innerHTML = `<div class="msg"><span class="body">hi</span></div>`;
+    const instance = engine();
+    const body = document.querySelector('.body');
+
+    body?.append(document.createTextNode(' peepoSad'));
+    await Promise.resolve();
+
+    expect(document.querySelectorAll('.ea-e')).toHaveLength(1);
+    instance.stop();
   });
 
   it('handles appended messages without duplicating emotes', async () => {
@@ -306,6 +390,21 @@ describe('ChatEngine', () => {
     instance.stop();
   });
 
+  it('does not tokenize an unchanged message without emotes', async () => {
+    document.body.innerHTML = `
+      <div class="msg"><span class="body">plain text</span><span class="meta">old</span></div>
+    `;
+    const instance = engine(descriptor({ exclude: ['.meta'] }));
+    tokenizeCalls.count = 0;
+
+    const meta = document.querySelector('.meta');
+    if (meta) meta.textContent = 'new';
+    await wait();
+
+    expect(tokenizeCalls.count).toBe(0);
+    instance.stop();
+  });
+
   it('does not recreate emote images for edits outside configured text roots', async () => {
     document.body.innerHTML = `
       <div class="msg"><span class="body">peepoSad</span><span class="metadata">old</span></div>
@@ -334,7 +433,7 @@ describe('ChatEngine', () => {
     instance.stop();
   });
 
-  it('resolves configured chat roots once per mutation batch', async () => {
+  it('does not re-resolve connected chat roots for mutations inside them', async () => {
     document.body.innerHTML = `
       <div id="chat">
         <div class="msg"><span class="body">one</span></div>
@@ -347,7 +446,74 @@ describe('ChatEngine', () => {
     bodies[0]?.append(' edited');
     bodies[1]?.append(' edited');
     await wait();
-    expect(query.mock.calls.filter(([selector]) => selector === '#chat')).toHaveLength(1);
+    expect(query.mock.calls.filter(([selector]) => selector === '#chat')).toHaveLength(0);
+    instance.stop();
+  });
+
+  it('picks up a chat root that mounts after start', async () => {
+    document.body.innerHTML = `<div id="app"></div>`;
+    const instance = engine(descriptor({ roots: ['#chat'] }));
+    expect(document.querySelectorAll('.ea-e')).toHaveLength(0);
+
+    document.body.innerHTML = `
+      <div id="chat"><div class="msg"><span class="body">peepoSad</span></div></div>
+    `;
+    await wait();
+
+    expect(document.querySelectorAll('#chat .ea-e')).toHaveLength(1);
+    instance.stop();
+  });
+
+  it('observes a second chat root added later', async () => {
+    document.body.innerHTML = `
+      <div id="chat"><div class="msg"><span class="body">peepoSad</span></div></div>
+    `;
+    const instance = engine(descriptor({ roots: ['#chat'] }));
+    expect(document.querySelectorAll('#chat .ea-e')).toHaveLength(1);
+
+    const second = document.createElement('div');
+    second.id = 'chat';
+    second.innerHTML = `<div class="msg"><span class="body">catJAM</span></div>`;
+    document.body.append(second);
+    await wait();
+
+    expect(second.querySelectorAll('.ea-e')).toHaveLength(1);
+    second.querySelector('.body')?.append(' peepoSad');
+    await wait();
+    expect(second.querySelectorAll('.ea-e')).toHaveLength(2);
+    instance.stop();
+  });
+
+  it('reattaches when the chat root is replaced', async () => {
+    document.body.innerHTML = `
+      <div id="chat"><div class="msg"><span class="body">peepoSad</span></div></div>
+    `;
+    const instance = engine(descriptor({ roots: ['#chat'] }));
+    expect(document.querySelectorAll('#chat .ea-e')).toHaveLength(1);
+
+    const next = document.createElement('div');
+    next.id = 'chat';
+    next.innerHTML = `<div class="msg"><span class="body">catJAM</span></div>`;
+    document.querySelector('#chat')?.replaceWith(next);
+    await wait();
+
+    expect(next.querySelectorAll('.ea-e')).toHaveLength(1);
+    expect(next.querySelector('.ea-e')?.getAttribute('data-ea-code')).toBe('catJAM');
+    instance.stop();
+  });
+
+  it('does not inspect mutations outside the chat root', async () => {
+    document.body.innerHTML = `
+      <div id="chat"><div class="msg"><span class="body">hi</span></div></div>
+      <div id="outside"></div>
+    `;
+    const instance = engine(descriptor({ roots: ['#chat'] }));
+    const closest = vi.spyOn(Element.prototype, 'closest');
+    const outside = document.querySelector('#outside');
+    if (outside) outside.innerHTML = `<div class="msg"><span class="body">peepoSad</span></div>`;
+    await wait();
+
+    expect(closest).not.toHaveBeenCalled();
     instance.stop();
   });
 
