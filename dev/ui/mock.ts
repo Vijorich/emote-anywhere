@@ -220,7 +220,7 @@ function installChrome(): void {
   const chrome = {
     runtime: {
       id: 'preview',
-      getManifest: () => ({ version: '0.3.0' }),
+      getManifest: () => ({ version: '0.3.1' }),
       getURL: (path: string) => path,
       sendMessage: async (request: RpcRequest) => {
         try {

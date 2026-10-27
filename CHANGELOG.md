@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-10-27
+
+### Fixed
+
+- The toolbar popup collapsed to a 25x25 square. Its CSS used viewport units,
+  which Chrome resolves against the popup's own initial 25x25 measuring viewport.
+  The popup now keeps its intended 380px width and content height.
+
 ## [0.3.0] - 2026-10-27
 
 ### Added
@@ -112,7 +120,8 @@ First public release.
 - Background image proxy for sites with a strict image CSP.
 - Chrome/Edge MV3 and Firefox MV3 builds.
 
-[Unreleased]: https://github.com/Vijorich/emote-anywhere/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Vijorich/emote-anywhere/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/Vijorich/emote-anywhere/releases/tag/v0.3.1
 [0.3.0]: https://github.com/Vijorich/emote-anywhere/releases/tag/v0.3.0
 [0.2.0]: https://github.com/Vijorich/emote-anywhere/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Vijorich/emote-anywhere/releases/tag/v0.1.0

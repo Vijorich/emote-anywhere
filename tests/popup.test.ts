@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppState, InstalledPlugin } from '../src/core/types';
 
@@ -104,6 +105,16 @@ beforeEach(() => {
 });
 
 describe('popup UI', () => {
+  it('does not size the popup with viewport units', () => {
+    // Chrome measures an action popup at 25x25 before sizing it to the content,
+    // so 100vw/100dvh clamp the whole document to a 25px square.
+    const css = readFileSync('src/entrypoints/popup/style.css', 'utf8').replace(
+      /\/\*[\s\S]*?\*\//g,
+      '',
+    );
+    expect(css).not.toMatch(/\b100(?:vw|dvh)\b/);
+  });
+
   it('shows a load error and retries instead of loading forever', async () => {
     let attempts = 0;
     mocks.rpc.mockImplementation(async (type: string) => {
