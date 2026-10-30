@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-10-30
+
+### Fixed
+
+- The emote picker no longer doubles the gap between the search field and the
+  grid, uses a themed thin scrollbar, and centres the close button glyph.
+- Help problem cards use the same inner padding as the About and Links panels.
+- The custom set JSON field sizes itself to the template on desktop and mobile,
+  so the placeholder never needs scrolling.
+- Small button labels sit optically centred in their buttons.
+
 ## [0.5.1] - 2026-10-30
 
 ### Fixed

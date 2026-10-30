@@ -124,16 +124,27 @@ button, input { font: inherit; color: inherit; }
   box-shadow: 0 0 0 2px var(--ea-accent);
 }
 .close {
-  width: 40px; height: 40px; border: 0; border-radius: 8px;
+  display: grid; place-items: center; width: 40px; height: 40px; padding: 0;
+  border: 0; border-radius: 8px; line-height: 1;
   background: transparent; color: var(--ea-muted); font-size: 20px; cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease;
 }
 .close:hover { background: var(--ea-control); color: var(--ea-text); }
 .grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
-  gap: 8px; padding: 16px; overflow-y: auto; align-content: start;
+  gap: 8px; padding: 0 16px 16px; overflow-y: auto; align-content: start;
   min-height: 0; flex: 1;
+  scrollbar-width: thin; scrollbar-color: var(--ea-control) transparent;
 }
+.grid::-webkit-scrollbar { width: 10px; }
+.grid::-webkit-scrollbar-track { background: transparent; }
+.grid::-webkit-scrollbar-thumb {
+  border: 2px solid transparent; border-radius: 999px;
+  background-color: var(--ea-control); background-clip: padding-box;
+}
+.grid::-webkit-scrollbar-thumb:hover { background-color: var(--ea-line); }
+.grid::-webkit-scrollbar-button { display: none; }
+.grid::-webkit-scrollbar-corner { background: transparent; }
 .cell {
   height: 48px; display: grid; place-items: center; padding: 8px;
   border: 0; border-radius: 8px; background: var(--ea-raised);
