@@ -5,7 +5,6 @@ import type { AppSettings, AppState, InstalledPlugin } from '../../core/types';
 import { brand } from '../../ui/components';
 import { h } from '../../ui/dom';
 import { trackFocusModality } from '../../ui/focus-modality';
-import { noticeBanner as buildNotice, type Notice, type NoticeAction } from '../../ui/notice';
 import type { OptionsContext } from './context';
 import { bindingsView } from './views/bindings';
 import { helpView } from './views/help';
@@ -21,9 +20,8 @@ trackFocusModality();
 const version = browser.runtime.getManifest().version;
 
 let state: AppState | null = null;
+let stateError = false;
 let view: ViewId = 'sources';
-let notice: Notice | null = null;
-let noticeTimer: number | null = null;
 let refreshTimer: number | null = null;
 let pendingRefresh = false;
 
@@ -39,32 +37,18 @@ function parseHash(): void {
   view = (VIEWS.some((item) => item.id === name) ? name : 'sources') as ViewId;
 }
 
-function show(text: string, kind: 'ok' | 'error' = 'ok', action?: NoticeAction): void {
-  notice = { text, kind, action };
-  if (noticeTimer !== null) {
-    window.clearTimeout(noticeTimer);
-    noticeTimer = null;
-  }
-  if (state || kind !== 'error') {
-    noticeTimer = window.setTimeout(
-      () => {
-        noticeTimer = null;
-        notice = null;
-        updateNotice();
-      },
-      action ? 8000 : 6000,
-    );
-  }
-  updateNotice();
+function reportError(error: unknown): void {
+  console.error(error);
 }
 
-async function refresh(message?: string, action?: NoticeAction): Promise<void> {
+async function refresh(): Promise<void> {
   try {
     state = await rpc<AppState>('state/get');
+    stateError = false;
     render();
-    if (message) show(message, 'ok', action);
   } catch (error) {
-    show(error instanceof Error ? error.message : String(error), 'error');
+    reportError(error);
+    stateError = true;
     if (!state) render();
   }
 }
@@ -89,16 +73,12 @@ async function requestOrigin(url: string): Promise<boolean> {
   }
 }
 
-async function updateGlobalSets(
-  sets: string[],
-  message: string,
-  action?: NoticeAction,
-): Promise<void> {
+async function updateGlobalSets(sets: string[]): Promise<void> {
   try {
     await rpc('globalBinding/set', { sets });
-    await refresh(message, action);
+    await refresh();
   } catch (error) {
-    show(error instanceof Error ? error.message : String(error), 'error');
+    reportError(error);
   }
 }
 
@@ -106,7 +86,7 @@ function updateSettings(patch: Partial<AppSettings>): void {
   void rpc('settings/update', { patch })
     .then(() => refresh())
     .catch((error: unknown) => {
-      show(String(error), 'error');
+      reportError(error);
       render();
     });
 }
@@ -117,10 +97,7 @@ function togglePlugin(plugin: InstalledPlugin, enabled: boolean): void {
       if (enabled) {
         const granted = await browser.permissions.request({ origins: plugin.descriptor.matches });
         if (!granted) {
-          show(
-            'Site access was not granted. Turn the plugin on again and allow access to its sites.',
-            'error',
-          );
+          reportError(new Error('Site access was not granted.'));
           render();
           return;
         }
@@ -131,26 +108,49 @@ function togglePlugin(plugin: InstalledPlugin, enabled: boolean): void {
         await refresh();
       }
     } catch (error) {
-      show(error instanceof Error ? error.message : String(error), 'error');
+      reportError(error);
       render();
     }
   })();
 }
 
-function noticeBanner(): HTMLElement | null {
-  return notice ? buildNotice(notice, 'data-notice') : null;
+function stateFallbackView(title: string): HTMLElement {
+  return h(
+    'main',
+    { class: 'view' },
+    h('header', { class: 'view-head' }, h('h1', { text: title })),
+    h('div', {
+      class: 'empty',
+      role: 'status',
+      text: stateError ? 'Could not load settings.' : 'Loading…',
+    }),
+    stateError
+      ? h(
+          'div',
+          { class: 'form-actions' },
+          h('button', {
+            class: 'btn primary',
+            type: 'button',
+            text: 'Retry',
+            onclick: () => {
+              stateError = false;
+              render();
+              void refresh();
+            },
+          }),
+        )
+      : null,
+  );
 }
 
-function updateNotice(): void {
-  const current = app.querySelector('[data-notice]');
-  const next = noticeBanner();
-  if (current) {
-    if (next) current.replaceWith(next);
-    else current.remove();
-  } else if (next) {
-    app.querySelector('.view')?.prepend(next);
-  }
-}
+const optionsContext: OptionsContext = {
+  getState: () => state,
+  refresh,
+  requestOrigin,
+  updateGlobalSets,
+  updateSettings,
+  togglePlugin,
+};
 
 function navLinks(idPrefix = 'nav'): HTMLElement {
   return h(
@@ -199,50 +199,6 @@ function mobileDialog(): HTMLDialogElement {
   });
   return dialog;
 }
-
-function stateFallbackView(title: string): HTMLElement {
-  const failed = notice?.kind === 'error';
-  return h(
-    'main',
-    { class: 'view' },
-    noticeBanner(),
-    h('header', { class: 'view-head' }, h('h1', { text: title })),
-    h('div', {
-      class: 'empty',
-      role: 'status',
-      text: failed ? 'Could not load settings.' : 'Loading…',
-    }),
-    failed
-      ? h(
-          'div',
-          { class: 'form-actions' },
-          h('button', {
-            class: 'btn primary',
-            type: 'button',
-            text: 'Retry',
-            onclick: () => {
-              if (noticeTimer !== null) window.clearTimeout(noticeTimer);
-              noticeTimer = null;
-              notice = null;
-              render();
-              void refresh();
-            },
-          }),
-        )
-      : null,
-  );
-}
-
-const optionsContext: OptionsContext = {
-  getState: () => state,
-  show,
-  refresh,
-  noticeBanner,
-  requestOrigin,
-  updateGlobalSets,
-  updateSettings,
-  togglePlugin,
-};
 
 function focusHeading(): void {
   const heading = app.querySelector<HTMLElement>('.view h1');

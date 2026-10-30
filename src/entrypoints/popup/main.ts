@@ -14,7 +14,6 @@ import { matchSpecificity, urlMatchesAny } from '../../core/url-match';
 import { bindingLabel, brandMark, plural, shortId, switchRow } from '../../ui/components';
 import { h } from '../../ui/dom';
 import { trackFocusModality } from '../../ui/focus-modality';
-import { noticeBanner as buildNotice, type Notice, type NoticeAction } from '../../ui/notice';
 import { clearSetLookupCache, lookupSet, setUrl } from '../../ui/sets';
 
 const appElement = document.querySelector<HTMLElement>('#app');
@@ -23,49 +22,14 @@ const app: HTMLElement = appElement;
 trackFocusModality();
 
 let state: AppState | null = null;
+let stateError = false;
 let tabId: number | undefined;
 let tabUrl = '';
 let context: ContentContext | null = null;
-let message: Notice | null = null;
-let messageTimer: number | null = null;
 let restoreFocusKey: string | null = null;
-
-function messageBanner(): HTMLElement | null {
-  return message ? buildNotice(message, 'data-message') : null;
-}
-
-function updateMessage(): void {
-  const current = app.querySelector('[data-message]');
-  const next = messageBanner();
-  if (current) {
-    if (next) current.replaceWith(next);
-    else current.remove();
-  } else if (next) {
-    app.querySelector('.popup-head')?.after(next);
-  }
-}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-function show(text: string, kind: 'ok' | 'error' = 'ok', action?: NoticeAction): void {
-  message = { text, kind, action };
-  if (messageTimer !== null) {
-    window.clearTimeout(messageTimer);
-    messageTimer = null;
-  }
-  if (state || kind !== 'error') {
-    messageTimer = window.setTimeout(
-      () => {
-        messageTimer = null;
-        message = null;
-        updateMessage();
-      },
-      action ? 8000 : 5000,
-    );
-  }
-  updateMessage();
 }
 
 function hostname(): string {
@@ -121,10 +85,12 @@ async function getContext(attempts = 1): Promise<ContentContext | null> {
 async function refresh(loadContext = true): Promise<void> {
   try {
     state = await rpc<AppState>('state/get');
+    stateError = false;
     if (loadContext) context = await getContext();
     render();
   } catch (error) {
-    show(error instanceof Error ? error.message : String(error), 'error');
+    console.error(error);
+    stateError = true;
     render();
   }
 }
@@ -177,27 +143,9 @@ function clearBindingButton(binding: Binding): HTMLButtonElement {
     void rpc('binding/remove', { key: binding.key })
       .then(async () => {
         await refresh();
-        show('Chat set cleared', 'ok', {
-          label: 'Undo',
-          run: async () => {
-            try {
-              await rpc('binding/set', {
-                pluginKey: binding.pluginKey,
-                channelKey: binding.channelKey,
-                label: binding.label,
-                sets: binding.sets,
-              });
-              await refresh();
-              show('Chat set restored');
-            } catch (error) {
-              show(String(error), 'error');
-              render();
-            }
-          },
-        });
       })
       .catch((error: unknown) => {
-        show(String(error), 'error');
+        console.error(error);
         render();
       });
   });
@@ -234,10 +182,9 @@ function bindingCard(plugin: InstalledPlugin): HTMLElement {
           sets,
         });
         input.value = '';
-        show(`Added ${info.name}`);
         await refresh();
       } catch (error) {
-        show(error instanceof Error ? error.message : String(error), 'error');
+        console.error(error);
         bindButton.disabled = false;
       }
     })();
@@ -260,26 +207,8 @@ function bindingCard(plugin: InstalledPlugin): HTMLElement {
             await rpc('binding/remove', { key: binding.key });
           }
           await refresh();
-          show('Set removed', 'ok', {
-            label: 'Undo',
-            run: async () => {
-              try {
-                await rpc('binding/set', {
-                  pluginKey: binding.pluginKey,
-                  channelKey: binding.channelKey,
-                  label: binding.label,
-                  sets: binding.sets,
-                });
-                await refresh();
-                show('Set restored');
-              } catch (error) {
-                show(error instanceof Error ? error.message : String(error), 'error');
-                render();
-              }
-            },
-          });
         } catch (error) {
-          show(error instanceof Error ? error.message : String(error), 'error');
+          console.error(error);
           render();
         }
       })();
@@ -381,7 +310,7 @@ function togglePlugin(plugin: InstalledPlugin, enabled: boolean): void {
         context = null;
         await refresh();
       } catch (error) {
-        show(String(error), 'error');
+        console.error(error);
         render();
       }
       return;
@@ -390,10 +319,7 @@ function togglePlugin(plugin: InstalledPlugin, enabled: boolean): void {
     try {
       const granted = await browser.permissions.request({ origins: plugin.descriptor.matches });
       if (!granted) {
-        show(
-          'Site access was not granted. Turn the plugin on again and allow access to its sites.',
-          'error',
-        );
+        console.error(new Error('Site access was not granted.'));
         render();
         return;
       }
@@ -402,7 +328,7 @@ function togglePlugin(plugin: InstalledPlugin, enabled: boolean): void {
       context = await getContext(5);
       await refresh(false);
     } catch (error) {
-      show(String(error), 'error');
+      console.error(error);
       render();
     }
   })();
@@ -456,20 +382,16 @@ function render(): void {
     ),
   );
 
-  const banner = messageBanner();
-  if (banner) app.append(banner);
-
   if (!state) {
-    if (message?.kind === 'error') {
+    if (stateError) {
+      app.append(h('p', { class: 'section-note', text: 'Could not load settings.' }));
       app.append(
         h('button', {
           class: 'btn',
           type: 'button',
           text: 'Retry',
           onclick: () => {
-            if (messageTimer !== null) window.clearTimeout(messageTimer);
-            messageTimer = null;
-            message = null;
+            stateError = false;
             render();
             void refresh();
           },
@@ -523,10 +445,9 @@ function render(): void {
                 .catch(() => undefined);
             }
             await sleep(300);
-            show('Reloaded');
             await refresh();
           } catch (error) {
-            show(error instanceof Error ? error.message : String(error), 'error');
+            console.error(error);
             render();
           } finally {
             reloadButton.disabled = false;

@@ -16,7 +16,6 @@ export function settingsView(current: AppState, ctx: OptionsContext): HTMLElemen
   return h(
     'main',
     { class: 'view' },
-    ctx.noticeBanner(),
     h('header', { class: 'view-head' }, h('h1', { text: 'Settings' })),
     h(
       'section',
@@ -66,7 +65,7 @@ export function settingsView(current: AppState, ctx: OptionsContext): HTMLElemen
             onclick: () => {
               void rpc('settings/update', { patch: { emoteScale: DEFAULT_EMOTE_SCALE } })
                 .then(() => ctx.refresh())
-                .catch((error: unknown) => ctx.show(String(error), 'error'));
+                .catch((error: unknown) => console.error(error));
             },
           }),
         ),
@@ -119,7 +118,7 @@ function scaleInput(value: number, preview: HTMLElement, ctx: OptionsContext): H
             output.textContent = `${previous.toFixed(1)}×`;
             updatePreviewScale(preview, previous);
             syncFill();
-            ctx.show(String(error), 'error');
+            console.error(error);
           });
       },
     },
@@ -151,9 +150,9 @@ function clearCacheButton(ctx: OptionsContext): HTMLButtonElement {
       try {
         await rpc('cache/clear');
         clearSetLookupCache();
-        await ctx.refresh('Cache cleared');
+        await ctx.refresh();
       } catch (error) {
-        ctx.show(error instanceof Error ? error.message : String(error), 'error');
+        console.error(error);
       }
     });
   });

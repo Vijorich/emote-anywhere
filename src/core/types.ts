@@ -176,7 +176,6 @@ export type RpcRequest =
   | { type: 'binding/remove'; key: string }
   | { type: 'globalBinding/set'; sets: string[] }
   | { type: 'set/add'; name: string; emotes: CustomEmote[] }
-  | { type: 'set/restore'; set: CustomSet; index: number }
   | { type: 'set/remove'; id: string }
   | { type: 'set/toggle'; id: string; enabled: boolean }
   | { type: 'settings/update'; patch: Partial<AppSettings> }

@@ -52,7 +52,7 @@
   align-items: center;
   min-width: 24px;
   padding: 0;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .row-actions .switch-copy {
@@ -71,16 +71,12 @@
 }
 
 .plugin-row {
-  align-items: flex-start;
+  position: relative;
+  align-items: center;
 }
 
 .plugin-row .row-sub {
   max-width: 60ch;
-}
-
-.plugin-row {
-  position: relative;
-  align-items: flex-start;
 }
 
 .plugin-row .row-main {
@@ -114,6 +110,13 @@
 .plugin-row .row-actions {
   position: relative;
   z-index: 2;
+  /* Let clicks on the gaps and the details chevron reach the row overlay. */
+  pointer-events: none;
+}
+
+.plugin-row .row-actions > button,
+.plugin-row .row-actions > .switch {
+  pointer-events: auto;
 }
 
 .plugin-dialog-actions {
@@ -126,9 +129,9 @@
 
 .plugin-dialog-actions .switch {
   flex: none;
-  gap: 10px;
+  gap: var(--space-2);
   align-items: center;
-  padding: 6px 10px;
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-control);
   transition: background-color 120ms ease;
 }
@@ -140,13 +143,13 @@
 .plugin-dialog {
   width: min(640px, calc(100vw - 32px));
   max-height: min(80vh, 720px);
-  padding: var(--space-5);
+  padding: var(--space-6);
   overflow: auto;
   border: 0;
   border-radius: var(--radius-sheet);
   background: var(--sheet);
   color: var(--text);
-  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
 }
 
 .plugin-dialog::backdrop {
@@ -166,7 +169,7 @@
 }
 
 .plugin-dialog-head .mono {
-  margin-top: 2px;
+  margin-top: var(--space-1);
   color: var(--muted);
 }
 
@@ -187,7 +190,7 @@
 .plugin-detail-label {
   color: var(--muted);
   font-size: var(--fs-small);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .plugin-dialog .field-label {
@@ -203,13 +206,25 @@
 
 .panel .mono {
   max-width: 70ch;
-  margin-top: 4px;
+  margin-top: var(--space-1);
   color: var(--muted);
   overflow-wrap: anywhere;
 }
 
+.panel .mono a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 2px;
+}
+
+.panel .mono a:hover {
+  color: var(--accent);
+  text-decoration-color: currentColor;
+}
+
 .panel > .disclosure {
-  margin-top: var(--space-3);
+  margin-top: var(--space-2);
 }
 
 .add-registry-panel > .disclosure {
@@ -218,25 +233,40 @@
 
 .disclosure summary {
   display: flex;
-  gap: 6px;
+  gap: var(--space-2);
   align-items: center;
-  min-height: 32px;
-  padding: var(--space-2) 0;
-  color: var(--accent);
-  font-size: 13px;
-  font-weight: 500;
+  justify-content: space-between;
+  min-height: var(--control-height);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: 600;
   cursor: pointer;
   list-style: none;
+  transition: background-color 120ms ease;
+}
+
+.disclosure summary:hover {
+  background: var(--active);
 }
 
 .disclosure summary::after {
-  width: 6px;
-  height: 6px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--space-1);
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
   transform: rotate(45deg);
   transition: transform 120ms ease;
   content: '';
+}
+
+.disclosure[open] summary {
+  margin-bottom: var(--space-3);
+  background: var(--active);
 }
 
 .disclosure[open] summary::after {
@@ -247,17 +277,13 @@
   display: none;
 }
 
-.disclosure[open] summary {
-  margin-bottom: var(--space-1);
-}
-
 @media (any-pointer: coarse) {
   .row-actions .switch {
-    min-width: 44px;
+    min-width: 48px;
   }
 
   .disclosure summary {
-    min-height: 44px;
+    min-height: 48px;
   }
 }
 

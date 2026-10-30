@@ -279,34 +279,6 @@ export async function handleRpc(
       return set;
     }
 
-    case 'set/restore': {
-      const parsed = parseCustomSet({
-        name: request.set.name,
-        emotes: request.set.emotes,
-      });
-      const id = request.set.id;
-      if (typeof id !== 'string' || !id || id.length > 100) {
-        throw new Error('Invalid custom set id');
-      }
-      const restored: CustomSet = {
-        id,
-        name: parsed.name,
-        enabled: request.set.enabled !== false,
-        emotes: parsed.emotes,
-      };
-      await mutateState((next) => {
-        if (next.customSets.some((set) => set.id === id)) {
-          throw new Error('Custom set already exists');
-        }
-        assertCustomSetCapacity(next, parsed.emotes.length);
-        const index = Number.isInteger(request.index)
-          ? Math.min(Math.max(request.index, 0), next.customSets.length)
-          : next.customSets.length;
-        next.customSets.splice(index, 0, restored);
-      });
-      return restored;
-    }
-
     case 'set/remove':
       await mutateState((next) => {
         next.customSets = next.customSets.filter((set) => set.id !== request.id);

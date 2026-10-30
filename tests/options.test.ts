@@ -87,12 +87,6 @@ function defaultRpc(type: string, payload: Record<string, unknown> = {}): unknow
     currentState.customSets.push(set);
     return set;
   }
-  if (type === 'set/restore') {
-    const set = payload.set as AppState['customSets'][number];
-    const index = Math.min(Number(payload.index), currentState.customSets.length);
-    currentState.customSets.splice(index, 0, set);
-    return set;
-  }
   throw new Error(`Unexpected request: ${type}`);
 }
 
@@ -134,7 +128,7 @@ describe('options UI', () => {
     expect(json.value).toBe('{');
     expect(name.value).toBe('Draft set');
     expect(document.activeElement).toBe(json);
-    expect(document.querySelector('[data-notice]')?.className).toContain('error');
+    expect(document.querySelector('.field-error')).not.toBeNull();
   });
 
   it('preserves a custom-set draft when the RPC fails', async () => {
@@ -155,7 +149,7 @@ describe('options UI', () => {
 
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await vi.waitFor(() =>
-      expect(document.querySelector('[data-notice]')?.textContent).toContain('Set rejected'),
+      expect(document.querySelector('.field-error')?.textContent).toContain('Set rejected'),
     );
 
     expect(document.querySelector('textarea')).toBe(json);
@@ -165,7 +159,7 @@ describe('options UI', () => {
     expect(document.activeElement).toBe(json);
   });
 
-  it('renders only once for a successful refresh with a message', async () => {
+  it('renders only once after a successful add', async () => {
     window.history.replaceState({}, '', '#sources');
     await import('../src/entrypoints/options/main');
     const details = await waitFor<HTMLDetailsElement>('.disclosure');
@@ -178,8 +172,9 @@ describe('options UI', () => {
 
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await vi.waitFor(() =>
-      expect(document.querySelector('[data-notice]')?.textContent).toBe('Set added'),
+      expect(mocks.rpc.mock.calls.some(([type]) => type === 'set/add')).toBe(true),
     );
+    await vi.waitFor(() => expect(currentState.customSets).toHaveLength(3));
 
     expect(replaceChildren).toHaveBeenCalledTimes(1);
     replaceChildren.mockRestore();
@@ -217,13 +212,13 @@ describe('options UI', () => {
     await import('../src/entrypoints/options/main');
 
     const input = await waitFor<HTMLInputElement>('input[aria-label="Enable Chat"]');
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     input.click();
 
-    await vi.waitFor(() =>
-      expect(document.querySelector('.banner.error')?.textContent).toContain('Enable failed'),
-    );
+    await vi.waitFor(() => expect(errors).toHaveBeenCalled());
     const restored = document.querySelector<HTMLInputElement>('input[aria-label="Enable Chat"]')!;
     expect(restored.checked).toBe(false);
+    errors.mockRestore();
   });
 
   it('keeps the advanced add-registry form collapsed', async () => {
@@ -239,7 +234,7 @@ describe('options UI', () => {
     expect(registry?.querySelector('input[aria-label="Registry URL"]')).not.toBeNull();
   });
 
-  it('removes a global set immediately and restores it with Undo', async () => {
+  it('removes a global set immediately', async () => {
     currentState.globalBinding.sets = ['01ABC', '02DEF'];
     mocks.rpc.mockImplementation(async (type: string, payload?: Record<string, unknown>) => {
       if (type === 'sevenTv/lookupSet') {
@@ -253,22 +248,12 @@ describe('options UI', () => {
     const remove = await waitFor<HTMLButtonElement>('[aria-label="Remove 7TV set 01ABC"]');
     const confirm = vi.spyOn(window, 'confirm');
     remove.click();
-    await vi.waitFor(() =>
-      expect(document.querySelector('[data-notice]')?.textContent).toContain('Set removed'),
-    );
+    await vi.waitFor(() => expect(currentState.globalBinding.sets).toEqual(['02DEF']));
     expect(confirm).not.toHaveBeenCalled();
-    expect(currentState.globalBinding.sets).toEqual(['02DEF']);
-
-    const undo = await waitFor<HTMLButtonElement>('.notice-action');
-    undo.click();
-    await vi.waitFor(() =>
-      expect(document.querySelector('[data-notice]')?.textContent).toContain('Set restored'),
-    );
-    expect(currentState.globalBinding.sets).toEqual(['01ABC', '02DEF']);
     confirm.mockRestore();
   });
 
-  it('removes a custom set immediately and restores it with Undo', async () => {
+  it('removes a custom set immediately', async () => {
     currentState.customSets = [
       {
         id: 'set1',
@@ -285,18 +270,6 @@ describe('options UI', () => {
     remove.click();
     await vi.waitFor(() => expect(currentState.customSets).toHaveLength(0));
     expect(confirm).not.toHaveBeenCalled();
-
-    const undo = await waitFor<HTMLButtonElement>('.notice-action');
-    undo.click();
-    await vi.waitFor(() =>
-      expect(document.querySelector('[data-notice]')?.textContent).toContain('Set restored'),
-    );
-    expect(currentState.customSets).toHaveLength(1);
-    expect(currentState.customSets[0]).toMatchObject({
-      name: 'Set one',
-      enabled: false,
-      emotes: [{ code: 'hi', url: 'https://img' }],
-    });
     confirm.mockRestore();
   });
 
@@ -340,32 +313,33 @@ describe('options UI', () => {
     const retry = await waitFor<HTMLButtonElement>('.view .btn.primary');
     expect(retry.textContent).toBe('Retry');
     expect(document.querySelector('.app')).not.toBeNull();
-    expect(document.querySelector('[data-notice]')?.textContent).toBe('State unavailable');
+    expect(document.body.textContent).toContain('Could not load settings.');
     expect(document.body.textContent).not.toContain('Loading settings…');
 
     retry.click();
     await waitFor('.disclosure');
     expect(attempts).toBe(2);
-    expect(document.querySelector('[data-notice]')).toBeNull();
+    expect(document.body.textContent).not.toContain('Could not load settings.');
   });
 
-  it('shows one read-only preview and labels complementary landmarks', async () => {
+  it('shows only the set lists and labels complementary landmarks', async () => {
     window.history.replaceState({}, '', '#bindings');
     await import('../src/entrypoints/options/main');
     await vi.waitFor(() => expect(document.querySelector('.view h1')?.textContent).toBe('Sets'));
 
-    const sections = [...document.querySelectorAll('.bindings-main .section-head h2')].map(
+    const sections = [...document.querySelectorAll('.view .section-head h2')].map(
       (heading) => heading.textContent,
     );
     expect(sections).toEqual(['Global sets', 'Chat sets']);
-    expect(document.querySelector('.bindings-side')?.textContent).toContain('Preview');
+    expect(document.querySelector('.bindings-side')).toBeNull();
+    expect(document.body.textContent).not.toContain('Preview');
     expect(document.body.textContent).not.toContain('Emote priority');
     expect(document.body.textContent).not.toContain('First 12');
     expect(document.querySelectorAll('main')).toHaveLength(1);
     const labels = [...document.querySelectorAll('aside')].map((aside) =>
       aside.getAttribute('aria-label'),
     );
-    expect(labels).toEqual(['Options sidebar', 'Set details']);
+    expect(labels).toEqual(['Options sidebar']);
     expect(new Set(labels).size).toBe(labels.length);
   });
 

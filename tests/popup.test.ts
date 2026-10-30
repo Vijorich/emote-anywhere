@@ -147,7 +147,7 @@ describe('popup UI', () => {
     await vi.waitFor(() =>
       expect([...document.querySelectorAll('button')].some((button) => button.textContent === 'Retry')).toBe(true),
     );
-    expect(document.querySelector('.banner.error')?.textContent).toBe('State unavailable');
+    expect(document.body.textContent).toContain('Could not load settings.');
     expect(document.body.textContent).not.toContain('Loading…');
 
     const retry = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
@@ -158,10 +158,12 @@ describe('popup UI', () => {
       expect(document.querySelector('input[aria-label="Enable Chat B"]')).not.toBeNull(),
     );
     expect(attempts).toBe(2);
+    expect(document.body.textContent).not.toContain('Could not load settings.');
   });
 
   it('handles permission rejection and restores the enable switch', async () => {
     mocks.requestPermission.mockRejectedValueOnce(new Error('Permission denied'));
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     await import('../src/entrypoints/popup/main');
     await vi.waitFor(() =>
       expect(document.querySelector('input[aria-label="Enable Chat B"]')).not.toBeNull(),
@@ -169,13 +171,12 @@ describe('popup UI', () => {
     const input = document.querySelector<HTMLInputElement>('input[aria-label="Enable Chat B"]')!;
 
     input.click();
-    await vi.waitFor(() =>
-      expect(document.querySelector('.banner.error')?.textContent).toContain('Permission denied'),
-    );
+    await vi.waitFor(() => expect(errors).toHaveBeenCalled());
 
     const restored = document.querySelector<HTMLInputElement>('input[aria-label="Enable Chat B"]')!;
     expect(restored.checked).toBe(false);
     expect(mocks.rpc.mock.calls.some(([type]) => type === 'plugin/enable')).toBe(false);
+    errors.mockRestore();
   });
 
   it('prefers the enabled plugin when a disabled plugin has higher priority', async () => {
@@ -211,7 +212,7 @@ describe('popup UI', () => {
     );
   });
 
-  it('removes a set immediately and restores it with Undo', async () => {
+  it('removes a set immediately', async () => {
     currentState.plugins.b!.enabled = true;
     currentState.bindings['b|default'] = {
       key: 'b|default',
@@ -229,23 +230,9 @@ describe('popup UI', () => {
 
     const remove = document.querySelector<HTMLButtonElement>('.chip button')!;
     remove.click();
-    await vi.waitFor(() =>
-      expect(document.querySelector('[data-message]')?.textContent).toContain('Set removed'),
-    );
-    expect(currentState.bindings['b|default']).toBeUndefined();
+    await vi.waitFor(() => expect(currentState.bindings['b|default']).toBeUndefined());
     expect(mocks.rpc.mock.calls.some(([type]) => type === 'binding/remove')).toBe(true);
-
-    const undo = await vi.waitFor(() => {
-      const button = document.querySelector<HTMLButtonElement>('.notice-action');
-      expect(button).not.toBeNull();
-      return button as HTMLButtonElement;
-    });
-    undo.click();
-    await vi.waitFor(() =>
-      expect(document.querySelector('.chip-label')?.textContent).toBe('Before'),
-    );
-    expect(currentState.bindings['b|default']?.sets).toEqual(['set']);
-    expect(document.querySelector('[data-message]')?.textContent).toContain('Set restored');
+    await vi.waitFor(() => expect(document.querySelector('.chip')).toBeNull());
   });
 
   it('clears presentation lookups before Reload emotes refreshes previews', async () => {

@@ -3,7 +3,6 @@ import { DEFAULT_GLOBAL_SET_IDS } from '../../../core/defaults';
 import type { AppState, Binding, SevenTvSetInfo } from '../../../core/types';
 import { bindingLabel, plural } from '../../../ui/components';
 import { h } from '../../../ui/dom';
-import { lookupSet } from '../../../ui/sets';
 import type { OptionsContext } from '../context';
 import {
   bindingChip,
@@ -24,25 +23,11 @@ export function bindingsView(current: AppState, ctx: OptionsContext): HTMLElemen
       ? h(
           'div',
           { class: 'rows' },
-          ...globalSets.map((id, index) =>
+          ...globalSets.map((id) =>
             setRow(id, {
               removeLabel: 'Remove',
               onRemove: () => {
-                void ctx.updateGlobalSets(
-                  globalSets.filter((item) => item !== id),
-                  'Set removed',
-                  {
-                    label: 'Undo',
-                    run: () => {
-                      const current = ctx.getState();
-                      const sets = current?.globalBinding.sets ?? globalSets;
-                      if (sets.includes(id)) return ctx.updateGlobalSets(sets, 'Set restored');
-                      const next = [...sets];
-                      next.splice(Math.min(index, next.length), 0, id);
-                      return ctx.updateGlobalSets(next, 'Set restored');
-                    },
-                  },
-                );
+                void ctx.updateGlobalSets(globalSets.filter((item) => item !== id));
               },
             }),
           ),
@@ -90,10 +75,7 @@ export function bindingsView(current: AppState, ctx: OptionsContext): HTMLElemen
             onclick: (event: Event) => {
               const button = event.currentTarget as HTMLButtonElement;
               void withBusy(button, 'Restoring…', () =>
-                ctx.updateGlobalSets(
-                  [...new Set([...globalSets, ...DEFAULT_GLOBAL_SET_IDS])],
-                  'Default set restored',
-                ),
+                ctx.updateGlobalSets([...new Set([...globalSets, ...DEFAULT_GLOBAL_SET_IDS])]),
               );
             },
           }),
@@ -158,42 +140,28 @@ export function bindingsView(current: AppState, ctx: OptionsContext): HTMLElemen
   return h(
     'main',
     { class: 'view' },
-    ctx.noticeBanner(),
     h('header', { class: 'view-head' }, h('h1', { text: 'Sets' })),
     h(
-      'div',
-      { class: 'bindings-grid' },
+      'section',
+      { class: 'section' },
       h(
         'div',
-        { class: 'bindings-main' },
-        h(
-          'section',
-          { class: 'section' },
-          h(
-            'div',
-            { class: 'section-head' },
-            h('h2', { text: 'Global sets' }),
-            h('span', { class: 'meta', text: plural(globalSets.length, 'set') }),
-          ),
-          globalPanel,
-        ),
-        h(
-          'section',
-          { class: 'section' },
-          h(
-            'div',
-            { class: 'section-head' },
-            h('h2', { text: 'Chat sets' }),
-            h('span', { class: 'meta', text: plural(chatBindings.length, 'chat') }),
-          ),
-          chatPanel,
-        ),
+        { class: 'section-head' },
+        h('h2', { text: 'Global sets' }),
+        h('span', { class: 'meta', text: plural(globalSets.length, 'set') }),
       ),
+      globalPanel,
+    ),
+    h(
+      'section',
+      { class: 'section' },
       h(
-        'aside',
-        { class: 'bindings-side', 'aria-label': 'Set details' },
-        previewSection(current),
+        'div',
+        { class: 'section-head' },
+        h('h2', { text: 'Chat sets' }),
+        h('span', { class: 'meta', text: plural(chatBindings.length, 'chat') }),
       ),
+      chatPanel,
     ),
   );
 }
@@ -206,24 +174,9 @@ function clearChatSet(
   void withBusy(button, 'Clearing…', async () => {
     try {
       await rpc('binding/remove', { key: binding.key });
-      await ctx.refresh('Chat set cleared', {
-        label: 'Undo',
-        run: async () => {
-          try {
-            await rpc('binding/set', {
-              pluginKey: binding.pluginKey,
-              channelKey: binding.channelKey,
-              label: binding.label,
-              sets: binding.sets,
-            });
-            await ctx.refresh('Chat set restored');
-          } catch (error) {
-            ctx.show(error instanceof Error ? error.message : String(error), 'error');
-          }
-        },
-      });
+      await ctx.refresh();
     } catch (error) {
-      ctx.show(error instanceof Error ? error.message : String(error), 'error');
+      console.error(error);
     }
   });
 }
@@ -236,65 +189,18 @@ async function addGlobalSet(
   const value = input.value.trim();
   if (!value) {
     markFieldError(input, 'Enter a 7TV set link or ID.');
-    ctx.show('Enter a 7TV set link or ID.', 'error');
     return;
   }
   clearFieldError(input);
   try {
     const info = await rpc<SevenTvSetInfo>('sevenTv/lookupSet', { input: value });
     if (current.globalBinding.sets.includes(info.id)) {
-      ctx.show('Already added.', 'error');
+      markFieldError(input, 'Already added.');
       return;
     }
-    await ctx.updateGlobalSets(
-      [...current.globalBinding.sets, info.id],
-      'Set added',
-    );
+    await ctx.updateGlobalSets([...current.globalBinding.sets, info.id]);
   } catch (error) {
     const text = error instanceof Error ? error.message : String(error);
     markFieldError(input, text);
-    ctx.show(text, 'error');
   }
-}
-
-function previewSection(current: AppState): HTMLElement {
-  const first = current.globalBinding.sets[0];
-  const grid = h('div', { class: 'emote-grid' });
-  const note = h('p', {
-    class: 'section-note',
-    text: first ? 'Loading…' : 'No global set.',
-  });
-
-  if (!first) {
-    grid.append(h('div', { class: 'empty' }, 'No global set.'));
-  } else {
-    void lookupSet(first).then((info) => {
-      if (!info) {
-        note.textContent = 'Could not load the set. Check your connection and reload the page.';
-        return;
-      }
-      note.textContent = `${info.name} · ${plural(info.emoteCount, 'emote')}`;
-      grid.replaceChildren(
-        ...(info.preview ?? []).slice(0, 12).map((emote) =>
-          h(
-            'span',
-            { class: 'emote-cell', title: emote.code },
-            h('img', {
-              src: emote.url,
-              alt: '',
-              decoding: 'async',
-              draggable: 'false',
-            }),
-          ),
-        ),
-      );
-    });
-  }
-
-  return h(
-    'section',
-    { class: 'section' },
-    h('div', { class: 'section-head' }, h('h2', { text: 'Preview' })),
-    h('div', { class: 'panel' }, grid, note),
-  );
 }

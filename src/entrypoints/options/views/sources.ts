@@ -18,7 +18,7 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
     ? h(
         'div',
         { class: 'rows' },
-        ...customSets.map((set, index) =>
+        ...customSets.map((set) =>
           h(
             'div',
             { class: 'row' },
@@ -40,7 +40,7 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
                 type: 'button',
                 text: 'Remove',
                 onclick: (event: Event) =>
-                  removeCustomSet(event.currentTarget as HTMLButtonElement, set, index, ctx),
+                  removeCustomSet(event.currentTarget as HTMLButtonElement, set, ctx),
               }),
               switchRow({
                 title: '',
@@ -51,7 +51,7 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
                   void rpc('set/toggle', { id: set.id, enabled: checked })
                     .then(() => ctx.refresh())
                     .catch((error: unknown) => {
-                      ctx.show(String(error), 'error');
+                      console.error(error);
                       void ctx.refresh();
                     });
                 },
@@ -76,7 +76,6 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
   return h(
     'main',
     { class: 'view' },
-    ctx.noticeBanner(),
     h('header', { class: 'view-head' }, h('h1', { text: 'Sources' })),
     h(
       'section',
@@ -144,25 +143,14 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
 function removeCustomSet(
   button: HTMLButtonElement,
   set: CustomSet,
-  index: number,
   ctx: OptionsContext,
 ): void {
   void withBusy(button, 'Removing…', async () => {
     try {
       await rpc('set/remove', { id: set.id });
-      await ctx.refresh('Set removed', {
-        label: 'Undo',
-        run: async () => {
-          try {
-            await rpc('set/restore', { set, index });
-            await ctx.refresh('Set restored');
-          } catch (error) {
-            ctx.show(error instanceof Error ? error.message : String(error), 'error');
-          }
-        },
-      });
+      await ctx.refresh();
     } catch (error) {
-      ctx.show(error instanceof Error ? error.message : String(error), 'error');
+      console.error(error);
     }
   });
 }
@@ -174,7 +162,6 @@ function addCustomSetForm(
 ): HTMLElement {
   const fail = (message: string, target: HTMLElement): void => {
     markFieldError(target as HTMLInputElement | HTMLTextAreaElement, message);
-    ctx.show(message, 'error');
   };
   name.addEventListener('input', () => clearFieldError(name));
   json.addEventListener('input', () => clearFieldError(json));
@@ -209,7 +196,7 @@ function addCustomSetForm(
                 .then(() => {
                   name.value = '';
                   json.value = '';
-                  return ctx.refresh('Set added');
+                  return ctx.refresh();
                 })
                 .catch((error: unknown) => {
                   fail(error instanceof Error ? error.message : String(error), json);
@@ -256,9 +243,9 @@ function registryPanel(
       void withBusy(refreshButton, 'Refreshing…', async () => {
         try {
           await rpc<Record<string, string>>('registry/refresh', { id: registry.id });
-          await ctx.refresh('Refreshed');
+          await ctx.refresh();
         } catch (error) {
-          ctx.show(error instanceof Error ? error.message : String(error), 'error');
+          console.error(error);
         }
       });
     },
@@ -304,9 +291,9 @@ function registryPanel(
                 void withBusy(button, 'Removing…', async () => {
                   try {
                     await rpc('registry/remove', { id: registry.id });
-                    await ctx.refresh('Registry removed');
+                    await ctx.refresh();
                   } catch (error) {
-                    ctx.show(error instanceof Error ? error.message : String(error), 'error');
+                    console.error(error);
                   }
                 });
               },
@@ -335,9 +322,9 @@ function removePlugin(
   void withBusy(button, 'Removing…', async () => {
     try {
       await rpc('plugin/remove', { key: plugin.key });
-      await ctx.refresh('Plugin removed');
+      await ctx.refresh();
     } catch (error) {
-      ctx.show(error instanceof Error ? error.message : String(error), 'error');
+      console.error(error);
     }
   });
 }
@@ -390,7 +377,6 @@ function pluginRow(plugin: InstalledPlugin, ctx: OptionsContext): HTMLElement {
           text: plural(descriptor.matches.length, 'site'),
         }),
       ),
-      h('span', { class: 'row-chevron', 'aria-hidden': 'true', text: '›' }),
     ),
     h(
       'div',
@@ -403,6 +389,7 @@ function pluginRow(plugin: InstalledPlugin, ctx: OptionsContext): HTMLElement {
         checked: plugin.enabled,
         onChange: (checked) => ctx.togglePlugin(plugin, checked),
       }),
+      h('span', { class: 'row-chevron', 'aria-hidden': 'true', text: '›' }),
     ),
     details,
   );
@@ -508,7 +495,6 @@ function addRegistryForm(ctx: OptionsContext): HTMLElement {
   });
   const fail = (message: string): void => {
     markFieldError(url, message);
-    ctx.show(message, 'error');
   };
   url.addEventListener('input', () => clearFieldError(url));
   return h(
@@ -536,9 +522,9 @@ function addRegistryForm(ctx: OptionsContext): HTMLElement {
                   await rpc('registry/add', { name: name.value.trim(), url: value });
                   name.value = '';
                   url.value = '';
-                  await ctx.refresh('Registry added');
+                  await ctx.refresh();
                 } catch (error) {
-                  ctx.show(error instanceof Error ? error.message : String(error), 'error');
+                  fail(error instanceof Error ? error.message : String(error));
                 }
               })();
             },

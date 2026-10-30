@@ -15,6 +15,8 @@ const lookup = new Map<string, Emote>([
   ['peepo', emote('peepo')],
   [':wrapped:', emote(':wrapped:')],
   [':tf:', emote(':tf:')],
+  ['???', emote('???')],
+  ['...', emote('...')],
 ]);
 
 describe('tokenizeText', () => {
@@ -44,6 +46,20 @@ describe('tokenizeText', () => {
     const tokens = tokenizeText('hi :tf:', lookup);
     expect(tokens).toHaveLength(1);
     expect(tokens[0]?.code).toBe(':tf:');
+  });
+
+  it('matches codes made only of punctuation', () => {
+    const tokens = tokenizeText('??? ...', lookup);
+    expect(tokens.map((token) => token.code)).toEqual(['???', '...']);
+    expect(tokens.map((token) => [token.start, token.end])).toEqual([
+      [0, 3],
+      [4, 7],
+    ]);
+  });
+
+  it('matches punctuation-only codes surrounded by punctuation', () => {
+    const tokens = tokenizeText('???, ...!', lookup);
+    expect(tokens.map((token) => token.code)).toEqual(['???', '...']);
   });
 
   it('is case sensitive', () => {

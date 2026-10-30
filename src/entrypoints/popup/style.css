@@ -4,29 +4,29 @@
    document at 25x25, so 100vw/100dvh collapse the popup to a tiny square. */
 html,
 body {
-  width: 380px;
+  width: 384px;
   background: var(--frame);
 }
 
 body {
-  font-size: var(--fs-body-compact);
+  font-size: var(--fs-body);
 }
 
 #app {
   display: grid;
   gap: var(--space-3);
   max-height: 600px;
-  padding: var(--space-3);
+  padding: var(--space-4);
   overflow-y: auto;
 }
 
 .popup-head {
   display: flex;
-  gap: var(--space-3);
+  gap: var(--space-4);
   align-items: center;
   justify-content: space-between;
-  min-height: 32px;
-  padding: 0 2px;
+  min-height: var(--control-height);
+  padding: 0 var(--space-1);
 }
 
 .popup-brand {
@@ -37,16 +37,15 @@ body {
 }
 
 .popup-brand .brand-mark {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
 }
 
 .popup-title {
   overflow: hidden;
-  font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 900;
-  letter-spacing: -0.02em;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  letter-spacing: -0.01em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -70,25 +69,25 @@ body {
 
 .panel-head h2,
 .panel h2 {
-  font-size: var(--fs-section-compact);
+  font-size: var(--fs-body);
   font-weight: 600;
 }
 
 .panel-head p,
 .panel > p {
-  margin-top: 2px;
+  margin-top: var(--space-1);
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-small);
   overflow-wrap: anywhere;
 }
 
 .section-note {
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .plugin-head {
   display: flex;
-  gap: 12px;
+  gap: var(--space-4);
   align-items: center;
   justify-content: space-between;
 }
@@ -98,7 +97,7 @@ body {
 }
 
 .plugin-name {
-  font-size: var(--fs-section-compact);
+  font-size: var(--fs-body);
   font-weight: 600;
   letter-spacing: -0.005em;
   overflow-wrap: anywhere;
@@ -116,19 +115,19 @@ body {
 
 .status {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
   margin-top: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-control);
   background: var(--raised);
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 
 .status::before {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--control);
   content: '';
@@ -168,18 +167,18 @@ body {
 
 .inline-form .input {
   flex: 1 1 auto;
-  min-height: 34px;
-  font-size: var(--fs-body-compact);
+  min-height: var(--control-height);
+  font-size: var(--fs-body);
 }
 
 .inline-form .btn {
   flex: none;
-  min-height: 34px;
+  min-height: var(--control-height);
 }
 
 .chip {
   max-width: 100%;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .chip-label {
@@ -190,10 +189,10 @@ body {
 
 .popup-foot {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
   justify-content: space-between;
-  padding: 0 2px 2px;
+  padding: 0 var(--space-1) var(--space-1);
 }
 
 .empty-panel {
@@ -203,7 +202,7 @@ body {
 }
 
 .empty-panel .form-actions {
-  margin-top: 2px;
+  margin-top: var(--space-1);
 }
 
 .panel .section-note + .inline-form,
@@ -213,12 +212,12 @@ body {
 
 @media (any-pointer: coarse) {
   .plugin-head .switch {
-    min-width: 44px;
+    min-width: 48px;
   }
 
   .inline-form .input,
   .inline-form .btn {
-    min-height: 44px;
+    min-height: 48px;
   }
 
   .inline-form .input {

@@ -14,13 +14,14 @@ state.
 
 ## Type
 
-Arial and Arial Black are the system-safe display and body pair. The heavy display
-face gives the product name and page titles a compact, chat-adjacent voice; Arial
-keeps controls legible at 12–14px. Mono (Consolas) is only for IDs, URLs and
-channel keys.
+The system UI stack (`system-ui`, Segoe UI, Roboto) keeps the interface native to
+the browser on every platform. Body text is 16px, notes 14px, small labels 13px.
+Titles use weight 700 with tight tracking; there is no separate display face.
+Mono (ui-monospace, Cascadia Mono, Consolas) is only for IDs, URLs and channel
+keys.
 
-Arial Black is absent on Linux and Android. The chain falls back to Arial at
-weight 900: still legible, slightly less dense.
+The picker panel and the options page use the same stack, so the emote grid
+matches the surrounding chat instead of introducing a second type voice.
 
 ## Icon
 
@@ -39,21 +40,26 @@ the reading column is capped.
 Controls are filled surfaces, not outlines: borders and focus outlines are replaced
 by tone steps and colour halos. Destructive actions stay neutral at rest and turn
 solid negative on hover or keyboard focus, so routine removal never competes with
-the primary action. Recoverable removals act immediately and offer Undo; removing a
-plugin or registry asks for confirmation. In every row the switch is the last
-control, so enable state always sits at the right edge.
+the primary action. Removals act immediately; removing a plugin or registry asks for
+confirmation. In every row the switch is the last control, so enable state always
+sits at the right edge.
+
+There are no transient banners or toasts. State changes are shown by the list
+itself, validation stays inline at the field, and load failures show a Retry button
+in place of the content.
 
 Text fields are filled with `--raised` and step to `--control` on focus. They have
 no hover state. Pointer focus changes only the fill; the colour halo is reserved
 for keyboard navigation, tracked by input modality, because a text input always
 matches `:focus-visible` in Chrome.
 
-The size slider is a 4px track with an accent fill and a 16px accent thumb. No
+The size slider is a 4px track with an accent fill and a 20px accent thumb. No
 native control chrome.
 
 ## Rhythm
 
-4px spacing scale, 5/8/10/16px radii, 120ms state transitions. Surfaces carry
+4px spacing scale, 8/16/24px radii, 120ms state transitions. Controls and rows
+are at least 40px high, and touch targets grow to 48px. Surfaces carry
 hierarchy; borders appear only where a control needs a boundary. Motion is limited
 to hover, focus and the picker zoom, and is removed under reduced motion.
 

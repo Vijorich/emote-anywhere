@@ -59,7 +59,7 @@ const PANEL_CSS = `
   --ea-accent: #6cc79e;
   --ea-accent-ink: #0b0f0c;
   --ea-accent-soft: #16281f;
-  font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 @media (prefers-color-scheme: light) {
   :host {
@@ -78,40 +78,40 @@ const PANEL_CSS = `
 button, input { font: inherit; color: inherit; }
 [hidden] { display: none !important; }
 .fab {
-  position: fixed; right: 20px; bottom: 88px; width: 42px; height: 42px;
+  position: fixed; right: 24px; bottom: 88px; width: 48px; height: 48px;
   display: grid; place-items: center; z-index: 2147483647;
-  border: 0; border-radius: 10px;
+  border: 0; border-radius: 8px;
   background: var(--ea-accent); color: var(--ea-accent-ink);
-  cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,.28);
+  cursor: pointer; box-shadow: 0 8px 16px rgba(0,0,0,.28);
   transition: background-color 120ms ease, color 120ms ease;
 }
 .fab:hover { background: var(--ea-text); color: var(--ea-surface); }
 .fab:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ea-surface), 0 0 0 4px var(--ea-accent), 0 6px 18px rgba(0,0,0,.28);
+  box-shadow: 0 0 0 2px var(--ea-surface), 0 0 0 4px var(--ea-accent), 0 8px 16px rgba(0,0,0,.28);
 }
 .close:focus-visible, .cell:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--ea-accent);
 }
 .panel {
-  position: fixed; right: 20px; bottom: 138px;
-  width: min(440px, calc(100% - 40px));
-  max-height: min(560px, calc(100dvh - 158px));
+  position: fixed; right: 24px; bottom: 144px;
+  width: min(440px, calc(100% - 48px));
+  max-height: min(560px, calc(100dvh - 168px));
   display: flex; flex-direction: column; overflow: hidden;
   background: var(--ea-surface); color: var(--ea-text);
-  border-radius: 12px;
-  box-shadow: 0 18px 48px rgba(0,0,0,.35);
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(0,0,0,.35);
   z-index: 2147483647;
 }
 @media (max-height: 520px) {
   .panel { top: 8px; bottom: 8px; max-height: none; }
 }
-.head { display: flex; gap: 8px; padding: 10px; }
+.head { display: flex; gap: 8px; padding: 16px; }
 .search {
-  flex: 1; min-width: 0; min-height: 34px; padding: 0 12px;
+  flex: 1; min-width: 0; min-height: 40px; padding: 0 16px;
   border: 0; border-radius: 8px;
-  background: var(--ea-raised); color: var(--ea-text); font-size: 14px;
+  background: var(--ea-raised); color: var(--ea-text); font-size: 16px;
   transition: background-color 120ms ease, box-shadow 120ms ease;
 }
 .search::placeholder { color: var(--ea-text); opacity: 0.68; }
@@ -124,18 +124,18 @@ button, input { font: inherit; color: inherit; }
   box-shadow: 0 0 0 2px var(--ea-accent);
 }
 .close {
-  width: 34px; height: 34px; border: 0; border-radius: 8px;
-  background: transparent; color: var(--ea-muted); font-size: 18px; cursor: pointer;
+  width: 40px; height: 40px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--ea-muted); font-size: 20px; cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease;
 }
 .close:hover { background: var(--ea-control); color: var(--ea-text); }
 .grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
-  gap: 4px; padding: 10px; overflow-y: auto; align-content: start;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  gap: 8px; padding: 16px; overflow-y: auto; align-content: start;
   min-height: 0; flex: 1;
 }
 .cell {
-  height: 46px; display: grid; place-items: center; padding: 4px;
+  height: 48px; display: grid; place-items: center; padding: 8px;
   border: 0; border-radius: 8px; background: var(--ea-raised);
   cursor: pointer; overflow: hidden;
   transition: background-color 120ms ease, transform 120ms ease;
@@ -144,10 +144,10 @@ button, input { font: inherit; color: inherit; }
 .cell:hover { background: var(--ea-control); }
 .cell:active { transform: scale(.96); }
 .cell.selected { background: var(--ea-accent-soft); box-shadow: inset 0 0 0 2px var(--ea-accent); }
-.cell img { max-width: 34px; max-height: 34px; width: auto; height: auto; display: block; pointer-events: none; }
+.cell img { max-width: 32px; max-height: 32px; width: auto; height: auto; display: block; pointer-events: none; }
 .cell-fallback {
   display: none; max-width: 100%;
-  color: var(--ea-muted); font-size: 10px; font-weight: 700; line-height: 1.2;
+  color: var(--ea-muted); font-size: 12px; font-weight: 700; line-height: 1.2;
   letter-spacing: -0.01em; text-align: center;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -159,14 +159,14 @@ button, input { font: inherit; color: inherit; }
 }
 .zoom[hidden] { display: none; }
 .zoom-card {
-  display: grid; justify-items: center; gap: 10px;
+  display: grid; justify-items: center; gap: 16px;
   max-width: min(320px, calc(100vw - 32px));
   max-height: calc(100dvh - 24px);
-  padding: 18px 20px 14px; overflow: auto;
+  padding: 24px; overflow: auto;
   pointer-events: auto;
   border-radius: 16px;
   background: var(--ea-surface);
-  box-shadow: 0 22px 60px rgba(0,0,0,.45);
+  box-shadow: 0 24px 64px rgba(0,0,0,.45);
   animation: ea-zoom-in 120ms ease-out;
 }
 .zoom img {
@@ -176,7 +176,7 @@ button, input { font: inherit; color: inherit; }
 }
 .zoom-code {
   max-width: 100%; overflow: hidden; color: var(--ea-text);
-  font-size: 12px; font-weight: 700; letter-spacing: 0.01em; line-height: 1.2;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.01em; line-height: 1.3;
   text-overflow: ellipsis; white-space: nowrap;
 }
 @keyframes ea-zoom-in {
@@ -188,9 +188,9 @@ button, input { font: inherit; color: inherit; }
   .cell:active { transform: none; }
 }
 @media (pointer: coarse) {
-  .fab { width: 44px; height: 44px; }
-  .close { width: 44px; height: 44px; }
-  .search { min-height: 44px; font-size: 16px; }
+  .fab { width: 48px; height: 48px; }
+  .close { width: 48px; height: 48px; }
+  .search { min-height: 48px; font-size: 16px; }
 }
 @media (forced-colors: active) {
   .cell.selected { outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }
@@ -200,10 +200,10 @@ button, input { font: inherit; color: inherit; }
   overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
 .grid-note {
-  grid-column: 1 / -1; padding: 8px 4px; color: var(--ea-muted);
-  font-size: 12px; line-height: 1.4; text-align: center;
+  grid-column: 1 / -1; padding: 8px; color: var(--ea-muted);
+  font-size: 13px; line-height: 1.5; text-align: center;
 }
-.empty { padding: 28px 18px; text-align: center; color: var(--ea-muted); font-size: 13px; line-height: 1.5; }
+.empty { padding: 32px 24px; text-align: center; color: var(--ea-muted); font-size: 16px; line-height: 1.5; }
 `;
 
 export class EmotePicker {
@@ -443,7 +443,7 @@ export class EmotePicker {
     const host = document.createElement('div');
     host.className = PICKER_HOST_CLASS;
     host.style.setProperty('all', 'initial', 'important');
-    host.style.setProperty('font-family', 'Arial, "Helvetica Neue", Helvetica, sans-serif', 'important');
+    host.style.setProperty('font-family', 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif', 'important');
     host.style.setProperty('position', 'fixed', 'important');
     host.style.setProperty('right', '0', 'important');
     host.style.setProperty('bottom', '0', 'important');

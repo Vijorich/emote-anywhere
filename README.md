@@ -12,7 +12,7 @@ a new extension version.
 
 ## Status
 
-Public beta (0.4.0). Chrome/Edge (123+) and Firefox 128+ (MV3). The engine, plugin
+Public beta (0.5.0). Chrome/Edge (123+) and Firefox 128+ (MV3). The engine, plugin
 registry, settings page, popup and emote picker are implemented. VK Messenger is the
 first plugin. Release builds are attached to
 [GitHub releases](https://github.com/Vijorich/emote-anywhere/releases).

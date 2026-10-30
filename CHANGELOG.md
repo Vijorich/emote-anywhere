@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-10-30
+
+### Added
+
+- Emote codes made only of punctuation, such as `???` or `...`, now render, even
+  when they touch a comma, a sentence end or another punctuation mark.
+
+### Changed
+
+- The options page, popup and picker use the system UI font with 16px body text.
+  Controls, switches, sliders and tap targets are larger.
+- Spacing, radii and row heights are aligned across the three surfaces. The popup
+  is 384px wide.
+- Disclosures such as **Add custom set** and **Add registry** are full-width
+  raised rows that fill with the active tone when open.
+- Plugin rows keep the details chevron next to the enable switch, and links in
+  panel notes are underlined.
+
+### Removed
+
+- The read-only **Preview** panel on Sets. Set chips already show the attached set
+  and its name.
+- The notification banners and Undo. Removals now apply immediately. Field
+  validation stays inline, and load failures keep their Retry button.
+
+### Fixed
+
+- Clicking the details chevron in a plugin row now opens the plugin dialog.
+
 ## [0.4.0] - 2026-10-30
 
 ### Added
