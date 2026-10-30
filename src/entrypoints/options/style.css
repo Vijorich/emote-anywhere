@@ -256,7 +256,6 @@
   flex: none;
   width: 8px;
   height: 8px;
-  margin-right: var(--space-1);
   border-right: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
   transform: rotate(45deg);

@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-10-30
+
+### Fixed
+
+- Help topics stack in the order About, Problems and Links, with no empty gap
+  beside About.
+- Disclosure chevrons and the plugin details chevron share one arrow shape and
+  sit at the same inset, instead of the shifted glyph.
+
 ## [0.5.0] - 2026-10-30
 
 ### Added

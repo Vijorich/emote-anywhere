@@ -389,7 +389,7 @@ function pluginRow(plugin: InstalledPlugin, ctx: OptionsContext): HTMLElement {
         checked: plugin.enabled,
         onChange: (checked) => ctx.togglePlugin(plugin, checked),
       }),
-      h('span', { class: 'row-chevron', 'aria-hidden': 'true', text: '›' }),
+      h('span', { class: 'row-chevron', 'aria-hidden': 'true' }),
     ),
     details,
   );

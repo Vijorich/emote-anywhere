@@ -263,13 +263,6 @@ h3[tabindex='-1']:focus-visible {
   display: none;
 }
 
-.help-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-  gap: var(--space-7);
-  align-items: start;
-}
-
 .links-panel .form-actions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
@@ -513,10 +506,12 @@ h3[tabindex='-1']:focus-visible {
 
 .row-chevron {
   flex: none;
-  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
   color: var(--faint);
-  font-size: 24px;
-  line-height: 1;
   /* Decorative: clicks must reach the row overlay button that opens details. */
   pointer-events: none;
 }
@@ -1169,7 +1164,6 @@ html.input-pointer .textarea:focus {
     display: inline-flex;
   }
 
-  .help-grid,
   .trouble-grid {
     grid-template-columns: 1fr;
   }
