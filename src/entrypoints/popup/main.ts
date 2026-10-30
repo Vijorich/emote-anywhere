@@ -11,9 +11,10 @@ import type {
   SevenTvSetInfo,
 } from '../../core/types';
 import { matchSpecificity, urlMatchesAny } from '../../core/url-match';
-import { brandMark, plural, shortId, switchRow } from '../../ui/components';
+import { bindingLabel, brandMark, plural, shortId, switchRow } from '../../ui/components';
 import { h } from '../../ui/dom';
 import { trackFocusModality } from '../../ui/focus-modality';
+import { noticeBanner as buildNotice, type Notice, type NoticeAction } from '../../ui/notice';
 import { clearSetLookupCache, lookupSet, setUrl } from '../../ui/sets';
 
 const appElement = document.querySelector<HTMLElement>('#app');
@@ -25,18 +26,12 @@ let state: AppState | null = null;
 let tabId: number | undefined;
 let tabUrl = '';
 let context: ContentContext | null = null;
-let message: { text: string; kind: 'ok' | 'error' } | null = null;
+let message: Notice | null = null;
 let messageTimer: number | null = null;
 let restoreFocusKey: string | null = null;
 
 function messageBanner(): HTMLElement | null {
-  if (!message) return null;
-  return h('div', {
-    class: `banner ${message.kind}`,
-    role: message.kind === 'error' ? 'alert' : 'status',
-    'data-message': 'true',
-    text: message.text,
-  });
+  return message ? buildNotice(message, 'data-message') : null;
 }
 
 function updateMessage(): void {
@@ -54,19 +49,21 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-function show(text: string, kind: 'ok' | 'error' = 'ok'): void {
-  message = { text, kind };
+function show(text: string, kind: 'ok' | 'error' = 'ok', action?: NoticeAction): void {
+  message = { text, kind, action };
   if (messageTimer !== null) {
     window.clearTimeout(messageTimer);
     messageTimer = null;
   }
   if (state || kind !== 'error') {
-    messageTimer = window.setTimeout(() => {
-      messageTimer = null;
-      message = null;
-      const active = document.activeElement;
-      if (!active || (active.tagName !== 'INPUT' && active.tagName !== 'TEXTAREA')) render();
-    }, 5000);
+    messageTimer = window.setTimeout(
+      () => {
+        messageTimer = null;
+        message = null;
+        updateMessage();
+      },
+      action ? 8000 : 5000,
+    );
   }
   updateMessage();
 }
@@ -151,21 +148,18 @@ function setChip(setId: string, onRemove: () => void): HTMLElement {
     rel: 'noreferrer',
     text: shortId(setId),
   });
-  const chip = h(
-    'span',
-    { class: 'chip', title: setId },
-    label,
-    h('button', {
-      type: 'button',
-      text: '×',
-      'aria-label': `Remove set ${setId}`,
-      onclick: onRemove,
-    }),
-  );
+  const remove = h('button', {
+    type: 'button',
+    text: '×',
+    'aria-label': `Remove set ${shortId(setId)}`,
+    onclick: onRemove,
+  });
+  const chip = h('span', { class: 'chip', title: setId }, label, remove);
   void lookupSet(setId).then((info) => {
     if (!info) return;
     label.textContent = info.name;
     chip.title = `${info.name} · ${plural(info.emoteCount, 'emote')}`;
+    remove.setAttribute('aria-label', `Remove set ${info.name}`);
   });
   return chip;
 }
@@ -174,43 +168,37 @@ function clearBindingButton(binding: Binding): HTMLButtonElement {
   const button = h('button', {
     class: 'btn danger tiny',
     type: 'button',
-    text: 'Clear binding',
+    text: 'Clear chat set',
   });
-  let armed = false;
-  let timer: number | null = null;
-
-  // Native confirm() is unreliable inside an action popup, so arm on first
-  // click and act on the second.
-  const disarm = (): void => {
-    armed = false;
-    if (timer !== null) {
-      window.clearTimeout(timer);
-      timer = null;
-    }
-    button.textContent = 'Clear binding';
-    button.classList.remove('armed');
-  };
-
   button.addEventListener('click', () => {
-    if (!armed) {
-      armed = true;
-      button.textContent = 'Confirm clear';
-      button.classList.add('armed');
-      timer = window.setTimeout(disarm, 4000);
-      return;
-    }
-    disarm();
+    if (button.disabled) return;
     button.disabled = true;
     button.textContent = 'Clearing…';
     void rpc('binding/remove', { key: binding.key })
-      .then(() => refresh())
+      .then(async () => {
+        await refresh();
+        show('Chat set cleared', 'ok', {
+          label: 'Undo',
+          run: async () => {
+            try {
+              await rpc('binding/set', {
+                pluginKey: binding.pluginKey,
+                channelKey: binding.channelKey,
+                label: binding.label,
+                sets: binding.sets,
+              });
+              await refresh();
+              show('Chat set restored');
+            } catch (error) {
+              show(String(error), 'error');
+              render();
+            }
+          },
+        });
+      })
       .catch((error: unknown) => {
         show(String(error), 'error');
         render();
-      })
-      .finally(() => {
-        button.disabled = false;
-        button.textContent = 'Clear binding';
       });
   });
 
@@ -242,7 +230,7 @@ function bindingCard(plugin: InstalledPlugin): HTMLElement {
         await rpc<Binding>('binding/set', {
           pluginKey: plugin.key,
           channelKey: context?.channelKey ?? 'default',
-          label: `${plugin.descriptor.name} · ${context?.channelKey ?? 'default'}`,
+          label: hostname(),
           sets,
         });
         input.value = '';
@@ -258,21 +246,38 @@ function bindingCard(plugin: InstalledPlugin): HTMLElement {
   const chips = (binding?.sets ?? []).map((setId) =>
     setChip(setId, () => {
       void (async () => {
-        if (!binding || !context) return;
+        if (!binding) return;
         const sets = binding.sets.filter((id) => id !== setId);
         try {
           if (sets.length) {
             await rpc('binding/set', {
-              pluginKey: plugin.key,
-              channelKey: context.channelKey,
+              pluginKey: binding.pluginKey,
+              channelKey: binding.channelKey,
               label: binding.label,
               sets,
             });
           } else {
             await rpc('binding/remove', { key: binding.key });
           }
-          show('Set removed');
           await refresh();
+          show('Set removed', 'ok', {
+            label: 'Undo',
+            run: async () => {
+              try {
+                await rpc('binding/set', {
+                  pluginKey: binding.pluginKey,
+                  channelKey: binding.channelKey,
+                  label: binding.label,
+                  sets: binding.sets,
+                });
+                await refresh();
+                show('Set restored');
+              } catch (error) {
+                show(error instanceof Error ? error.message : String(error), 'error');
+                render();
+              }
+            },
+          });
         } catch (error) {
           show(error instanceof Error ? error.message : String(error), 'error');
           render();
@@ -290,10 +295,12 @@ function bindingCard(plugin: InstalledPlugin): HTMLElement {
       h(
         'div',
         {},
-        h('h2', { text: 'This chat' }),
+        h('h2', { text: 'Chat set' }),
         h('p', {
-          class: 'mono',
-          text: context?.channelKey ? `Channel ${context.channelKey}` : 'Unknown chat',
+          title: context?.channelKey ? `Channel ${context.channelKey}` : undefined,
+          text: binding
+            ? bindingLabel(binding.label, binding.channelKey, hostname())
+            : hostname(),
         }),
       ),
       binding ? clearBindingButton(binding) : null,
@@ -337,7 +344,7 @@ function pluginCard(plugin: InstalledPlugin): HTMLElement {
         h('h2', { class: 'plugin-name', text: plugin.descriptor.name }),
         h('p', {
           class: 'row-sub',
-          text: `${plural(plugin.descriptor.matches.length, 'site')} · v${plugin.descriptor.version}`,
+          text: plural(plugin.descriptor.matches.length, 'site'),
         }),
       ),
       switchRow({
@@ -498,7 +505,7 @@ function render(): void {
   if (plugin.enabled) {
     if (context) app.append(bindingCard(plugin));
     const reloadButton = h('button', {
-      class: 'btn',
+      class: 'btn quiet',
       type: 'button',
       text: 'Reload emotes',
       onclick: () => {

@@ -12,7 +12,7 @@ a new extension version.
 
 ## Status
 
-Public beta (0.3.1). Chrome/Edge (123+) and Firefox 128+ (MV3). The engine, plugin
+Public beta (0.4.0). Chrome/Edge (123+) and Firefox 128+ (MV3). The engine, plugin
 registry, settings page, popup and emote picker are implemented. VK Messenger is the
 first plugin. Release builds are attached to
 [GitHub releases](https://github.com/Vijorich/emote-anywhere/releases).
@@ -37,19 +37,19 @@ Set emote size with the slider in Settings. The default is **1.2×**
 A global set is a list of 7TV sets that load in **every** chat. The default set
 is [`emote everywhere default set`](https://7tv.app/emote-sets/01M5VFKKAQEH8WEF0N0PNRK2YP)
 (`01M5VFKKAQEH8WEF0N0PNRK2YP`). It is part of the default state and is added to
-existing installs on upgrade. Remove it in **Chat sets**, or restore it there.
+existing installs on upgrade. Remove it in **Sets**, or restore it there.
 
-A per-chat set still wins for the chat it was made for. The full priority is:
+A chat set still wins for the chat it was made for. The full priority is:
 
-1. per-chat sets;
+1. chat sets;
 2. global sets;
-3. the site's own 7TV channel (when no per-chat set exists);
+3. the site's own 7TV channel (when no chat set exists);
 4. enabled custom sets;
 5. 7TV, BTTV and FFZ global providers.
 
 The first source that defines a code renders it.
 
-Manage global sets in **Chat sets**, or add a per-chat set from the popup while the
+Manage global sets in **Sets**, or add a chat set from the popup while the
 chat is open.
 
 The background worker owns all state and emote resolution. Content scripts ask it for

@@ -45,9 +45,54 @@ function makeState(): AppState {
 
 let currentState: AppState;
 
-function defaultRpc(type: string): unknown {
+function defaultRpc(type: string, payload: Record<string, unknown> = {}): unknown {
   if (type === 'state/get') return currentState;
-  if (type === 'set/add' || type === 'cache/clear') return true;
+  if (type === 'cache/clear') return true;
+  if (type === 'globalBinding/set') {
+    currentState.globalBinding = { sets: [...((payload.sets as string[]) ?? [])] };
+    return currentState.globalBinding;
+  }
+  if (type === 'binding/remove') {
+    delete currentState.bindings[payload.key as string];
+    return true;
+  }
+  if (type === 'binding/set') {
+    const key = `${payload.pluginKey as string}|${payload.channelKey as string}`;
+    const binding = {
+      key,
+      pluginKey: payload.pluginKey as string,
+      channelKey: payload.channelKey as string,
+      label: payload.label as string,
+      sets: [...((payload.sets as string[]) ?? [])],
+    };
+    currentState.bindings[key] = binding;
+    return binding;
+  }
+  if (type === 'set/remove') {
+    currentState.customSets = currentState.customSets.filter((set) => set.id !== payload.id);
+    return true;
+  }
+  if (type === 'set/toggle') {
+    const set = currentState.customSets.find((item) => item.id === payload.id);
+    if (set) set.enabled = payload.enabled === true;
+    return true;
+  }
+  if (type === 'set/add') {
+    const set = {
+      id: `new_${currentState.customSets.length + 1}`,
+      name: payload.name as string,
+      enabled: true,
+      emotes: (payload.emotes as AppState['customSets'][number]['emotes']) ?? [],
+    };
+    currentState.customSets.push(set);
+    return set;
+  }
+  if (type === 'set/restore') {
+    const set = payload.set as AppState['customSets'][number];
+    const index = Math.min(Number(payload.index), currentState.customSets.length);
+    currentState.customSets.splice(index, 0, set);
+    return set;
+  }
   throw new Error(`Unexpected request: ${type}`);
 }
 
@@ -61,7 +106,9 @@ beforeEach(() => {
   mocks.rpc.mockReset();
   mocks.addStorageListener.mockClear();
   currentState = makeState();
-  mocks.rpc.mockImplementation(async (type: string) => defaultRpc(type));
+  mocks.rpc.mockImplementation(async (type: string, payload?: Record<string, unknown>) =>
+    defaultRpc(type, payload),
+  );
   document.body.innerHTML = '<div id="app"></div>';
   window.history.replaceState({}, '', '#sources');
   window.scrollTo = vi.fn();
@@ -179,6 +226,80 @@ describe('options UI', () => {
     expect(restored.checked).toBe(false);
   });
 
+  it('keeps the advanced add-registry form collapsed', async () => {
+    window.history.replaceState({}, '', '#sources');
+    await import('../src/entrypoints/options/main');
+    await waitFor('.disclosure');
+
+    const registry = [...document.querySelectorAll<HTMLDetailsElement>('details.disclosure')].find(
+      (details) => details.querySelector('summary')?.textContent === 'Add registry',
+    );
+    expect(registry).not.toBeUndefined();
+    expect(registry?.open).toBe(false);
+    expect(registry?.querySelector('input[aria-label="Registry URL"]')).not.toBeNull();
+  });
+
+  it('removes a global set immediately and restores it with Undo', async () => {
+    currentState.globalBinding.sets = ['01ABC', '02DEF'];
+    mocks.rpc.mockImplementation(async (type: string, payload?: Record<string, unknown>) => {
+      if (type === 'sevenTv/lookupSet') {
+        return { id: '01ABC', name: 'Test set', emoteCount: 1, preview: [] };
+      }
+      return defaultRpc(type, payload);
+    });
+    window.history.replaceState({}, '', '#bindings');
+    await import('../src/entrypoints/options/main');
+
+    const remove = await waitFor<HTMLButtonElement>('[aria-label="Remove 7TV set 01ABC"]');
+    const confirm = vi.spyOn(window, 'confirm');
+    remove.click();
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-notice]')?.textContent).toContain('Set removed'),
+    );
+    expect(confirm).not.toHaveBeenCalled();
+    expect(currentState.globalBinding.sets).toEqual(['02DEF']);
+
+    const undo = await waitFor<HTMLButtonElement>('.notice-action');
+    undo.click();
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-notice]')?.textContent).toContain('Set restored'),
+    );
+    expect(currentState.globalBinding.sets).toEqual(['01ABC', '02DEF']);
+    confirm.mockRestore();
+  });
+
+  it('removes a custom set immediately and restores it with Undo', async () => {
+    currentState.customSets = [
+      {
+        id: 'set1',
+        name: 'Set one',
+        enabled: false,
+        emotes: [{ code: 'hi', url: 'https://img' }],
+      },
+    ];
+    window.history.replaceState({}, '', '#sources');
+    await import('../src/entrypoints/options/main');
+
+    const remove = await waitFor<HTMLButtonElement>('.rows .row .btn.danger');
+    const confirm = vi.spyOn(window, 'confirm');
+    remove.click();
+    await vi.waitFor(() => expect(currentState.customSets).toHaveLength(0));
+    expect(confirm).not.toHaveBeenCalled();
+
+    const undo = await waitFor<HTMLButtonElement>('.notice-action');
+    undo.click();
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-notice]')?.textContent).toContain('Set restored'),
+    );
+    expect(currentState.customSets).toHaveLength(1);
+    expect(currentState.customSets[0]).toMatchObject({
+      name: 'Set one',
+      enabled: false,
+      emotes: [{ code: 'hi', url: 'https://img' }],
+    });
+    confirm.mockRestore();
+  });
+
   it('keeps focus on a settings switch after the refresh render', async () => {
     window.history.replaceState({}, '', '#settings');
     mocks.rpc.mockImplementation(async (type: string) => {
@@ -228,21 +349,18 @@ describe('options UI', () => {
     expect(document.querySelector('[data-notice]')).toBeNull();
   });
 
-  it('lists enabled custom sets in load order and labels complementary landmarks', async () => {
+  it('shows one read-only preview and labels complementary landmarks', async () => {
     window.history.replaceState({}, '', '#bindings');
     await import('../src/entrypoints/options/main');
-    await vi.waitFor(() => expect(document.querySelectorAll('.source-row')).toHaveLength(5));
+    await vi.waitFor(() => expect(document.querySelector('.view h1')?.textContent).toBe('Sets'));
 
-    const rows = [...document.querySelectorAll('.source-row')];
-    expect(rows.map((row) => row.querySelector('.source-name')?.textContent)).toEqual([
-      'Per-chat',
-      'Global sets',
-      '7TV channel',
-      'Custom sets',
-      'Providers',
-    ]);
-    expect(rows[3]?.querySelector('.source-value')?.textContent).toBe('1 set');
-    expect(rows[3]?.querySelector('.source-value')?.className).toContain('active');
+    const sections = [...document.querySelectorAll('.bindings-main .section-head h2')].map(
+      (heading) => heading.textContent,
+    );
+    expect(sections).toEqual(['Global sets', 'Chat sets']);
+    expect(document.querySelector('.bindings-side')?.textContent).toContain('Preview');
+    expect(document.body.textContent).not.toContain('Emote priority');
+    expect(document.body.textContent).not.toContain('First 12');
     expect(document.querySelectorAll('main')).toHaveLength(1);
     const labels = [...document.querySelectorAll('aside')].map((aside) =>
       aside.getAttribute('aria-label'),
@@ -304,9 +422,14 @@ describe('options UI', () => {
     window.location.hash = '#sources';
     const button = await waitFor<HTMLButtonElement>('.plugin-details');
     expect(button.getAttribute('aria-label')).toBe('Details for Chat');
-    expect(button.closest('.row')?.textContent).toContain('A long plugin description');
+    const row = button.closest('.row');
+    expect(row?.querySelector('.row-copy')?.textContent).not.toContain(
+      'A long plugin description',
+    );
+    expect(row?.querySelector('.row-copy')?.textContent).toContain('5 sites');
+    expect(row?.querySelector('.row-chevron')).not.toBeNull();
 
-    const dialog = button.closest('.row')?.querySelector('dialog') as HTMLDialogElement;
+    const dialog = row?.querySelector('dialog') as HTMLDialogElement;
     expect(dialog.textContent).toContain('A long plugin description with the full selector details.');
     expect(dialog.textContent).toContain('https://five.example/*');
     expect(dialog.querySelector('a[href="https://example.test/plugin"]')).not.toBeNull();

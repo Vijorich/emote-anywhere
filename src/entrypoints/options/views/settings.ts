@@ -34,7 +34,7 @@ export function settingsView(current: AppState, ctx: OptionsContext): HTMLElemen
         }),
         switchRow({
           title: 'Channel emotes',
-          description: "Load the site's 7TV channel when the chat has no set.",
+          description: "Load the chat's 7TV channel when no set is bound.",
           focusKey: 'setting-autoChannel',
           checked: settings.autoChannel,
           onChange: (checked) => ctx.updateSettings({ autoChannel: checked }),
@@ -176,7 +176,7 @@ function renderPreview(container: HTMLElement, current: AppState, scale: number)
     container.append(
       h('p', {
         class: 'section-note',
-        text: 'Add a global set in Chat sets to preview emote size.',
+        text: 'Add a global set in Sets to preview emote size.',
       }),
     );
     return;

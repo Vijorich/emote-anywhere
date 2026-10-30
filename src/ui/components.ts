@@ -69,6 +69,13 @@ export function shortId(id: string): string {
   return id.length > 10 ? `${id.slice(0, 6)}…${id.slice(-3)}` : id;
 }
 
+/** Older bindings stored the raw channel key in their label. */
+export function bindingLabel(label: string, channelKey: string, fallback: string): string {
+  const clean = label.trim();
+  const legacy = clean === channelKey || clean.endsWith(`· ${channelKey}`);
+  return !clean || (channelKey && legacy) ? fallback : clean;
+}
+
 export function plural(count: number, one: string, many = `${one}s`): string {
   return `${count} ${count === 1 ? one : many}`;
 }

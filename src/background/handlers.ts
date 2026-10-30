@@ -108,6 +108,19 @@ async function prepareSets(values: string[], allowEmpty = false): Promise<string
   return sets;
 }
 
+function assertCustomSetCapacity(state: AppState, emotes: number): void {
+  if (state.customSets.length >= MAX_CUSTOM_SETS) {
+    throw new Error(`Add at most ${MAX_CUSTOM_SETS} custom sets`);
+  }
+  const totalEmotes = state.customSets.reduce(
+    (total, existing) => total + existing.emotes.length,
+    0,
+  );
+  if (totalEmotes + emotes > MAX_TOTAL_CUSTOM_EMOTES) {
+    throw new Error(`Custom sets allow at most ${MAX_TOTAL_CUSTOM_EMOTES} emotes in total`);
+  }
+}
+
 export async function handleRpc(
   request: RpcRequest,
   sender: RpcSender | null = null,
@@ -260,19 +273,38 @@ export async function handleRpc(
         emotes: parsed.emotes,
       };
       await mutateState((next) => {
-        if (next.customSets.length >= MAX_CUSTOM_SETS) {
-          throw new Error(`Add at most ${MAX_CUSTOM_SETS} custom sets`);
-        }
-        const totalEmotes = next.customSets.reduce(
-          (total, existing) => total + existing.emotes.length,
-          0,
-        );
-        if (totalEmotes + parsed.emotes.length > MAX_TOTAL_CUSTOM_EMOTES) {
-          throw new Error(`Custom sets allow at most ${MAX_TOTAL_CUSTOM_EMOTES} emotes in total`);
-        }
+        assertCustomSetCapacity(next, parsed.emotes.length);
         next.customSets.push(set);
       });
       return set;
+    }
+
+    case 'set/restore': {
+      const parsed = parseCustomSet({
+        name: request.set.name,
+        emotes: request.set.emotes,
+      });
+      const id = request.set.id;
+      if (typeof id !== 'string' || !id || id.length > 100) {
+        throw new Error('Invalid custom set id');
+      }
+      const restored: CustomSet = {
+        id,
+        name: parsed.name,
+        enabled: request.set.enabled !== false,
+        emotes: parsed.emotes,
+      };
+      await mutateState((next) => {
+        if (next.customSets.some((set) => set.id === id)) {
+          throw new Error('Custom set already exists');
+        }
+        assertCustomSetCapacity(next, parsed.emotes.length);
+        const index = Number.isInteger(request.index)
+          ? Math.min(Math.max(request.index, 0), next.customSets.length)
+          : next.customSets.length;
+        next.customSets.splice(index, 0, restored);
+      });
+      return restored;
     }
 
     case 'set/remove':

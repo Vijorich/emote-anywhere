@@ -1,15 +1,15 @@
 # Backlog
 
 Remaining work that needs a real account, a clean browser profile or a store
-login. The 0.3.1 release checks pass: the registry is public, the repository is
+login. The 0.4.0 release checks pass: the registry is public, the repository is
 public, the Firefox ID is permanent, release notes exist and `pnpm release:check`
 passes.
 
-## After the 0.3.1 release
+## After the 0.4.0 release
 
 - [ ] Install both release zips on clean Chrome and Firefox profiles, enable VK,
       add a 7TV set, and test the picker plus proxied images in a real VK chat.
-- [ ] Upload `0.3.1` to Chrome Web Store, Microsoft Edge Add-ons and AMO.
+- [ ] Upload `0.4.0` to Chrome Web Store, Microsoft Edge Add-ons and AMO.
       Follow `docs/STORE.md`.
 - [ ] Add the store links to the README and the GitHub repository homepage.
 - [ ] Optional: automate store uploads with API credentials in GitHub Actions.

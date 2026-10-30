@@ -4,6 +4,41 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-30
+
+### Added
+
+- Undo for recoverable removals: set chips, chat sets, global sets and custom
+  sets. The notice keeps Undo available for eight seconds.
+- Custom set undo restores its id, enabled state and position in the list.
+
+### Changed
+
+- The "Chat sets" screen is now **Sets**, with **Global sets** and **Chat sets**
+  sections. The popup card is named **Chat set**.
+- Recoverable removals act immediately and offer Undo. Removing a plugin or
+  registry still asks for confirmation.
+- Destructive buttons stay neutral at rest and turn red on hover or keyboard
+  focus, so routine removal no longer competes with the primary action.
+- The registry form is collapsed behind an **Add registry** disclosure.
+- The read-only "Emote priority" panel is removed. **Preview** remains.
+- Plugin rows show a site count and a details chevron. Full descriptions and
+  versions stay in the plugin dialog.
+- Chat labels use the binding label or host name; raw channel keys remain in the
+  tooltip only.
+- Providers use full names: BetterTTV and FrankerFaceZ.
+- Reload emotes is a quiet action. Empty states are shorter.
+- Settings copy uses **Channel emotes** consistently.
+
+### Removed
+
+- The "First 12" preview label and version strings in list rows.
+
+### Fixed
+
+- Older bindings showed a raw numeric channel key in the popup and Sets screen.
+- Focused headings after hash navigation drew an input-like focus ring.
+
 ## [0.3.1] - 2026-10-27
 
 ### Fixed
@@ -120,7 +155,8 @@ First public release.
 - Background image proxy for sites with a strict image CSP.
 - Chrome/Edge MV3 and Firefox MV3 builds.
 
-[Unreleased]: https://github.com/Vijorich/emote-anywhere/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/Vijorich/emote-anywhere/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Vijorich/emote-anywhere/releases/tag/v0.4.0
 [0.3.1]: https://github.com/Vijorich/emote-anywhere/releases/tag/v0.3.1
 [0.3.0]: https://github.com/Vijorich/emote-anywhere/releases/tag/v0.3.0
 [0.2.0]: https://github.com/Vijorich/emote-anywhere/releases/tag/v0.2.0

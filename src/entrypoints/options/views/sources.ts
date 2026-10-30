@@ -3,6 +3,7 @@ import { rpc } from '../../../core/rpc';
 import type {
   AppState,
   CustomEmote,
+  CustomSet,
   InstalledPlugin,
   RegistryRef,
 } from '../../../core/types';
@@ -17,7 +18,7 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
     ? h(
         'div',
         { class: 'rows' },
-        ...customSets.map((set) =>
+        ...customSets.map((set, index) =>
           h(
             'div',
             { class: 'row' },
@@ -38,18 +39,8 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
                 class: 'btn danger tiny',
                 type: 'button',
                 text: 'Remove',
-                onclick: (event: Event) => {
-                  const button = event.currentTarget as HTMLButtonElement;
-                  if (!window.confirm(`Remove custom set "${set.name}"?`)) return;
-                  void withBusy(button, 'Removing…', async () => {
-                    try {
-                      await rpc('set/remove', { id: set.id });
-                      await ctx.refresh('Set removed');
-                    } catch (error) {
-                      ctx.show(error instanceof Error ? error.message : String(error), 'error');
-                    }
-                  });
-                },
+                onclick: (event: Event) =>
+                  removeCustomSet(event.currentTarget as HTMLButtonElement, set, index, ctx),
               }),
               switchRow({
                 title: '',
@@ -69,7 +60,7 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
           ),
         ),
       )
-    : h('div', { class: 'empty' }, 'No custom sets yet. Add one below with Add custom set.');
+    : h('div', { class: 'empty' }, 'No custom sets yet.');
 
   const nameInput = h('input', { class: 'input', type: 'text', placeholder: 'Set name' });
   const jsonInput = h('textarea', {
@@ -80,7 +71,7 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
 
   const registryPanels = current.registries.length
     ? current.registries.map((registry) => registryPanel(current, registry, ctx))
-    : [h('div', { class: 'empty' }, 'No registries yet. Add one below.')];
+    : [h('div', { class: 'empty' }, 'No registries yet.')];
 
   return h(
     'main',
@@ -107,7 +98,7 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
           },
         }),
         switchRow({
-          title: 'BTTV',
+          title: 'BetterTTV',
           focusKey: 'provider-bttv',
           checked: settings.providers.bttv,
           onChange: (checked) => {
@@ -115,7 +106,7 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
           },
         }),
         switchRow({
-          title: 'FFZ',
+          title: 'FrankerFaceZ',
           focusKey: 'provider-ffz',
           checked: settings.providers.ffz,
           onChange: (checked) => {
@@ -148,6 +139,32 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
       addRegistryForm(ctx),
     ),
   );
+}
+
+function removeCustomSet(
+  button: HTMLButtonElement,
+  set: CustomSet,
+  index: number,
+  ctx: OptionsContext,
+): void {
+  void withBusy(button, 'Removing…', async () => {
+    try {
+      await rpc('set/remove', { id: set.id });
+      await ctx.refresh('Set removed', {
+        label: 'Undo',
+        run: async () => {
+          try {
+            await rpc('set/restore', { set, index });
+            await ctx.refresh('Set restored');
+          } catch (error) {
+            ctx.show(error instanceof Error ? error.message : String(error), 'error');
+          }
+        },
+      });
+    } catch (error) {
+      ctx.show(error instanceof Error ? error.message : String(error), 'error');
+    }
+  });
 }
 
 function addCustomSetForm(
@@ -205,7 +222,7 @@ function addCustomSetForm(
       },
       h('p', {
         class: 'section-note',
-        text: 'Paste a JSON object with an emotes array. Each emote needs a code and a URL. The Name field above overrides the name in the JSON.',
+        text: 'Paste a JSON object with an emotes array. Each emote needs a code and a URL. The Name field overrides the name in the JSON.',
       }),
       field('Name', name),
       h(
@@ -370,9 +387,10 @@ function pluginRow(plugin: InstalledPlugin, ctx: OptionsContext): HTMLElement {
         ),
         h('span', {
           class: 'row-sub',
-          text: `v${descriptor.version} · ${descriptor.description}`,
+          text: plural(descriptor.matches.length, 'site'),
         }),
       ),
+      h('span', { class: 'row-chevron', 'aria-hidden': 'true', text: '›' }),
     ),
     h(
       'div',
@@ -495,48 +513,47 @@ function addRegistryForm(ctx: OptionsContext): HTMLElement {
   url.addEventListener('input', () => clearFieldError(url));
   return h(
     'div',
-    { class: 'panel add-registry' },
+    { class: 'panel add-registry-panel' },
     h(
-      'div',
-      { class: 'panel-head' },
+      'details',
+      { class: 'disclosure' },
+      h('summary', { text: 'Add registry' }),
       h(
-        'div',
-        {},
-        h('h2', { text: 'Add registry' }),
-        h('p', { text: 'Name is optional. The URL must return a registry JSON file.' }),
-      ),
-    ),
-    h(
-      'form',
-      {
-        class: 'form',
-        on: {
-          submit: (event: Event) => {
-            event.preventDefault();
-            const value = url.value.trim();
-            if (!value) {
-              fail('Enter a registry URL.');
-              return;
-            }
-            void (async () => {
-              await ctx.requestOrigin(value);
-              try {
-                await rpc('registry/add', { name: name.value.trim(), url: value });
-                name.value = '';
-                url.value = '';
-                await ctx.refresh('Registry added');
-              } catch (error) {
-                ctx.show(error instanceof Error ? error.message : String(error), 'error');
+        'form',
+        {
+          class: 'form',
+          on: {
+            submit: (event: Event) => {
+              event.preventDefault();
+              const value = url.value.trim();
+              if (!value) {
+                fail('Enter a registry URL.');
+                return;
               }
-            })();
+              void (async () => {
+                await ctx.requestOrigin(value);
+                try {
+                  await rpc('registry/add', { name: name.value.trim(), url: value });
+                  name.value = '';
+                  url.value = '';
+                  await ctx.refresh('Registry added');
+                } catch (error) {
+                  ctx.show(error instanceof Error ? error.message : String(error), 'error');
+                }
+              })();
+            },
           },
         },
-      },
-      h('div', { class: 'field-row' }, field('Name', name), field('URL', url)),
-      h(
-        'div',
-        { class: 'form-actions' },
-        h('button', { class: 'btn primary', type: 'submit', text: 'Add registry' }),
+        h('p', {
+          class: 'section-note',
+          text: 'Name is optional. The URL must return a registry JSON file.',
+        }),
+        h('div', { class: 'field-row' }, field('Name', name), field('URL', url)),
+        h(
+          'div',
+          { class: 'form-actions' },
+          h('button', { class: 'btn primary', type: 'submit', text: 'Add registry' }),
+        ),
       ),
     ),
   );

@@ -106,6 +106,12 @@ a:hover {
   box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 4px var(--accent);
 }
 
+h1[tabindex='-1']:focus-visible,
+h2[tabindex='-1']:focus-visible,
+h3[tabindex='-1']:focus-visible {
+  box-shadow: none;
+}
+
 ::selection {
   background: var(--accent-soft);
 }
@@ -363,29 +369,6 @@ a:hover {
   margin-top: var(--space-3);
 }
 
-.source-row {
-  display: flex;
-  gap: var(--space-4);
-  align-items: center;
-  justify-content: space-between;
-  min-height: 40px;
-}
-
-.source-name {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.source-value {
-  color: var(--faint);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-
-.source-value.active {
-  color: var(--text);
-}
-
 /* Type and section heads */
 
 .view-head {
@@ -554,6 +537,14 @@ a:hover {
   white-space: nowrap;
 }
 
+.row-chevron {
+  flex: none;
+  margin-left: auto;
+  color: var(--faint);
+  font-size: 20px;
+  line-height: 1;
+}
+
 .row-actions {
   display: flex;
   flex: none;
@@ -641,16 +632,12 @@ a:hover {
 }
 
 .btn.danger {
-  background: var(--negative-soft);
-  color: var(--negative);
+  background: var(--control);
+  color: var(--muted);
 }
 
-.btn.danger:hover {
-  background: var(--negative);
-  color: var(--sheet);
-}
-
-.btn.danger.armed {
+.btn.danger:hover,
+.btn.danger:focus-visible {
   background: var(--negative);
   color: var(--sheet);
 }
@@ -861,6 +848,7 @@ html.input-pointer .textarea:focus {
 
 .banner {
   display: flex;
+  flex-wrap: wrap;
   gap: 9px;
   align-items: center;
   padding: var(--space-3) var(--space-4);
@@ -869,6 +857,11 @@ html.input-pointer .textarea:focus {
   color: var(--text);
   font-size: 13px;
   overflow-wrap: anywhere;
+}
+
+.banner .notice-action {
+  flex: none;
+  margin-left: auto;
 }
 
 .panel > .banner {

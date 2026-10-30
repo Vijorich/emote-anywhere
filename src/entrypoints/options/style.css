@@ -83,6 +83,10 @@
   align-items: flex-start;
 }
 
+.plugin-row .row-main {
+  flex: 1;
+}
+
 .plugin-row:hover {
   background: var(--active);
 }
@@ -206,6 +210,10 @@
 
 .panel > .disclosure {
   margin-top: var(--space-3);
+}
+
+.add-registry-panel > .disclosure {
+  margin-top: 0;
 }
 
 .disclosure summary {

@@ -175,6 +175,12 @@ async function handle(request: RpcRequest): Promise<unknown> {
       return clone(set);
     }
 
+    case 'set/restore': {
+      const index = Math.min(request.index, state.customSets.length);
+      state.customSets.splice(index, 0, clone(request.set));
+      return clone(request.set);
+    }
+
     case 'registry/refresh': {
       for (const registry of state.registries) {
         registry.lastCheckedAt = Date.now();
@@ -220,7 +226,7 @@ function installChrome(): void {
   const chrome = {
     runtime: {
       id: 'preview',
-      getManifest: () => ({ version: '0.3.1' }),
+      getManifest: () => ({ version: '0.4.0' }),
       getURL: (path: string) => path,
       sendMessage: async (request: RpcRequest) => {
         try {

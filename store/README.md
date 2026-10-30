@@ -8,7 +8,7 @@ mock data, not a shipped set.
 | File | Screen |
 | --- | --- |
 | `01-sources.png` | Providers, custom sets and registries |
-| `02-bindings.png` | Chat sets: global and per-chat |
+| `02-bindings.png` | Sets: global and chat sets |
 | `03-settings.png` | Chat options, emote size and cache |
 | `04-help.png` | Links and common problems |
 

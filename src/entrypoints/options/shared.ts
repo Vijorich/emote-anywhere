@@ -1,4 +1,3 @@
-import type { AppState } from '../../core/types';
 import { plural, shortId } from '../../ui/components';
 import { h } from '../../ui/dom';
 import { lookupSet, setUrl } from '../../ui/sets';
@@ -89,46 +88,6 @@ export function bindingChip(id: string): HTMLElement {
     chip.title = `${info.name} · ${plural(info.emoteCount, 'emote')}`;
   });
   return chip;
-}
-
-export function sourceOrderSection(current: AppState): HTMLElement {
-  const settings = current.settings;
-  const providerCount = [
-    settings.providers.sevenTv,
-    settings.providers.bttv,
-    settings.providers.ffz,
-  ].filter(Boolean).length;
-  const bindingCount = Object.keys(current.bindings).length;
-  const globalCount = current.globalBinding.sets.length;
-  const customCount = current.customSets.filter((set) => set.enabled).length;
-
-  return h(
-    'section',
-    { class: 'section' },
-    h(
-      'div',
-      { class: 'section-head' },
-      h('h2', { text: 'Emote priority' }),
-    ),
-    h(
-      'div',
-      { class: 'panel' },
-      sourceRow('Per-chat', bindingCount ? plural(bindingCount, 'chat') : 'None', bindingCount > 0),
-      sourceRow('Global sets', globalCount ? plural(globalCount, 'set') : 'None', globalCount > 0),
-      sourceRow('7TV channel', settings.autoChannel ? 'Auto' : 'Off', settings.autoChannel),
-      sourceRow('Custom sets', customCount ? plural(customCount, 'set') : 'Off', customCount > 0),
-      sourceRow('Providers', `${providerCount} on`, providerCount > 0),
-    ),
-  );
-}
-
-function sourceRow(name: string, value: string, active: boolean): HTMLElement {
-  return h(
-    'div',
-    { class: 'source-row' },
-    h('span', { class: 'source-name', text: name }),
-    h('span', { class: active ? 'source-value active' : 'source-value', text: value }),
-  );
 }
 
 export async function withBusy(

@@ -9,7 +9,8 @@ state.
 - Green accent (`#17694e` light, `#6cc79e` dark) marks actions, links and on states.
 - Neutral greens tint the frame, sheet, raised and active surfaces so the UI sits
   between light and dark chat themes without turning blue or grey.
-- Red and amber are reserved for errors and warnings. No fourth hue.
+- Red and amber are reserved for destructive actions, errors and warnings. No
+  fourth hue.
 
 ## Type
 
@@ -36,10 +37,11 @@ the reading column is capped.
 ## Controls
 
 Controls are filled surfaces, not outlines: borders and focus outlines are replaced
-by tone steps and colour halos. Destructive actions use a negative-soft fill at
-rest, solid negative on hover and while armed. The fill is what stops Remove and
-Clear binding from reading as labels. In every row the switch is the last control,
-so enable state always sits at the right edge.
+by tone steps and colour halos. Destructive actions stay neutral at rest and turn
+solid negative on hover or keyboard focus, so routine removal never competes with
+the primary action. Recoverable removals act immediately and offer Undo; removing a
+plugin or registry asks for confirmation. In every row the switch is the last
+control, so enable state always sits at the right edge.
 
 Text fields are filled with `--raised` and step to `--control` on focus. They have
 no hover state. Pointer focus changes only the fill; the colour halo is reserved

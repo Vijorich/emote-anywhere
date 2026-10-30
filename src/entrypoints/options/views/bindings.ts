@@ -1,7 +1,7 @@
 import { rpc } from '../../../core/rpc';
 import { DEFAULT_GLOBAL_SET_IDS } from '../../../core/defaults';
-import type { AppState, SevenTvSetInfo } from '../../../core/types';
-import { plural } from '../../../ui/components';
+import type { AppState, Binding, SevenTvSetInfo } from '../../../core/types';
+import { bindingLabel, plural } from '../../../ui/components';
 import { h } from '../../../ui/dom';
 import { lookupSet } from '../../../ui/sets';
 import type { OptionsContext } from '../context';
@@ -10,7 +10,6 @@ import {
   clearFieldError,
   markFieldError,
   setRow,
-  sourceOrderSection,
   withBusy,
 } from '../shared';
 
@@ -25,14 +24,24 @@ export function bindingsView(current: AppState, ctx: OptionsContext): HTMLElemen
       ? h(
           'div',
           { class: 'rows' },
-          ...globalSets.map((id) =>
+          ...globalSets.map((id, index) =>
             setRow(id, {
               removeLabel: 'Remove',
               onRemove: () => {
-                if (!window.confirm('Remove this set from global sets?')) return;
                 void ctx.updateGlobalSets(
                   globalSets.filter((item) => item !== id),
                   'Set removed',
+                  {
+                    label: 'Undo',
+                    run: () => {
+                      const current = ctx.getState();
+                      const sets = current?.globalBinding.sets ?? globalSets;
+                      if (sets.includes(id)) return ctx.updateGlobalSets(sets, 'Set restored');
+                      const next = [...sets];
+                      next.splice(Math.min(index, next.length), 0, id);
+                      return ctx.updateGlobalSets(next, 'Set restored');
+                    },
+                  },
                 );
               },
             }),
@@ -113,7 +122,11 @@ export function bindingsView(current: AppState, ctx: OptionsContext): HTMLElemen
                     class: 'row-title',
                     text: plugin?.descriptor.name ?? 'Chat',
                   }),
-                  h('span', { class: 'row-sub', text: `Channel ${binding.channelKey}` }),
+                  h('span', {
+                    class: 'row-sub',
+                    title: `Channel ${binding.channelKey}`,
+                    text: bindingLabel(binding.label, binding.channelKey, 'Chat set'),
+                  }),
                   h(
                     'span',
                     { class: 'chips' },
@@ -127,19 +140,9 @@ export function bindingsView(current: AppState, ctx: OptionsContext): HTMLElemen
                 h('button', {
                   class: 'btn danger tiny',
                   type: 'button',
-                  text: 'Clear binding',
-                  onclick: (event: Event) => {
-                    const button = event.currentTarget as HTMLButtonElement;
-                    if (!window.confirm('Clear the set for this chat?')) return;
-                    void withBusy(button, 'Clearing…', async () => {
-                      try {
-                        await rpc('binding/remove', { key: binding.key });
-                        await ctx.refresh('Set removed');
-                      } catch (error) {
-                        ctx.show(error instanceof Error ? error.message : String(error), 'error');
-                      }
-                    });
-                  },
+                  text: 'Clear chat set',
+                  onclick: (event: Event) =>
+                    clearChatSet(event.currentTarget as HTMLButtonElement, binding, ctx),
                 }),
               ),
             );
@@ -148,7 +151,7 @@ export function bindingsView(current: AppState, ctx: OptionsContext): HTMLElemen
       : h(
           'div',
           { class: 'empty' },
-          'No per-chat sets. Add one from the popup while a chat is open.',
+          'No chat sets yet. Add one from the popup while a chat is open.',
         ),
   );
 
@@ -156,7 +159,7 @@ export function bindingsView(current: AppState, ctx: OptionsContext): HTMLElemen
     'main',
     { class: 'view' },
     ctx.noticeBanner(),
-    h('header', { class: 'view-head' }, h('h1', { text: 'Chat sets' })),
+    h('header', { class: 'view-head' }, h('h1', { text: 'Sets' })),
     h(
       'div',
       { class: 'bindings-grid' },
@@ -180,7 +183,7 @@ export function bindingsView(current: AppState, ctx: OptionsContext): HTMLElemen
           h(
             'div',
             { class: 'section-head' },
-            h('h2', { text: 'Per-chat' }),
+            h('h2', { text: 'Chat sets' }),
             h('span', { class: 'meta', text: plural(chatBindings.length, 'chat') }),
           ),
           chatPanel,
@@ -189,11 +192,40 @@ export function bindingsView(current: AppState, ctx: OptionsContext): HTMLElemen
       h(
         'aside',
         { class: 'bindings-side', 'aria-label': 'Set details' },
-        sourceOrderSection(current),
         previewSection(current),
       ),
     ),
   );
+}
+
+function clearChatSet(
+  button: HTMLButtonElement,
+  binding: Binding,
+  ctx: OptionsContext,
+): void {
+  void withBusy(button, 'Clearing…', async () => {
+    try {
+      await rpc('binding/remove', { key: binding.key });
+      await ctx.refresh('Chat set cleared', {
+        label: 'Undo',
+        run: async () => {
+          try {
+            await rpc('binding/set', {
+              pluginKey: binding.pluginKey,
+              channelKey: binding.channelKey,
+              label: binding.label,
+              sets: binding.sets,
+            });
+            await ctx.refresh('Chat set restored');
+          } catch (error) {
+            ctx.show(error instanceof Error ? error.message : String(error), 'error');
+          }
+        },
+      });
+    } catch (error) {
+      ctx.show(error instanceof Error ? error.message : String(error), 'error');
+    }
+  });
 }
 
 async function addGlobalSet(
@@ -262,12 +294,7 @@ function previewSection(current: AppState): HTMLElement {
   return h(
     'section',
     { class: 'section' },
-    h(
-      'div',
-      { class: 'section-head' },
-      h('h2', { text: 'Preview' }),
-      h('span', { class: 'meta', text: 'First 12' }),
-    ),
+    h('div', { class: 'section-head' }, h('h2', { text: 'Preview' })),
     h('div', { class: 'panel' }, grid, note),
   );
 }

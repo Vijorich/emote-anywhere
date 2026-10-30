@@ -110,6 +110,45 @@ describe('RPC boundaries', () => {
     expect(state.mutateState).not.toHaveBeenCalled();
   });
 
+  it('restores a custom set at its original position', async () => {
+    const current = stateWithChat();
+    current.customSets = [
+      {
+        id: 'first',
+        name: 'First',
+        enabled: true,
+        emotes: [{ code: 'one', url: 'https://cdn.example/one.png' }],
+      },
+      {
+        id: 'third',
+        name: 'Third',
+        enabled: true,
+        emotes: [{ code: 'three', url: 'https://cdn.example/three.png' }],
+      },
+    ];
+    state.mutateState.mockImplementation(async (change: (next: AppState) => unknown) => {
+      const result = await change(current);
+      return { state: current, result };
+    });
+
+    await handleRpc(
+      {
+        type: 'set/restore',
+        index: 1,
+        set: {
+          id: 'second',
+          name: 'Second',
+          enabled: false,
+          emotes: [{ code: 'two', url: 'https://cdn.example/two.png' }],
+        },
+      },
+      null,
+    );
+
+    expect(current.customSets.map((set) => set.id)).toEqual(['first', 'second', 'third']);
+    expect(current.customSets[1]?.enabled).toBe(false);
+  });
+
   it('rejects a custom set when the custom-set limit is reached', async () => {
     const current: AppState = {
       version: 1,

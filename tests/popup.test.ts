@@ -75,10 +75,26 @@ let currentState: AppState;
 let setName: string;
 let frameContexts: unknown[];
 
-function defaultRpc(type: string): unknown {
+function defaultRpc(type: string, payload: Record<string, unknown> = {}): unknown {
   if (type === 'state/get') return currentState;
   if (type === 'cache/clear' || type === 'plugin/enable') return true;
   if (type === 'frame/contexts') return frameContexts;
+  if (type === 'binding/remove') {
+    delete currentState.bindings[payload.key as string];
+    return true;
+  }
+  if (type === 'binding/set') {
+    const key = `${payload.pluginKey as string}|${payload.channelKey as string}`;
+    const binding = {
+      key,
+      pluginKey: payload.pluginKey as string,
+      channelKey: payload.channelKey as string,
+      label: payload.label as string,
+      sets: [...((payload.sets as string[]) ?? [])],
+    };
+    currentState.bindings[key] = binding;
+    return binding;
+  }
   if (type === 'sevenTv/lookupSet') {
     return { id: 'set', name: setName, emoteCount: 1, preview: [] };
   }
@@ -91,7 +107,9 @@ beforeEach(() => {
   currentState = makeState();
   setName = 'Set';
   frameContexts = [];
-  mocks.rpc.mockImplementation(async (type: string) => defaultRpc(type));
+  mocks.rpc.mockImplementation(async (type: string, payload?: Record<string, unknown>) =>
+    defaultRpc(type, payload),
+  );
   mocks.queryTabs.mockResolvedValue([{ id: 7, url: TAB_URL }]);
   mocks.sendMessage.mockImplementation(async (_id: number, message: { type?: string }) =>
     message.type === 'ea/context'
@@ -186,8 +204,48 @@ describe('popup UI', () => {
     await import('../src/entrypoints/popup/main');
 
     await vi.waitFor(() =>
-      expect(document.querySelector('.panel-head .mono')?.textContent).toBe('Channel frame-chat'),
+      expect(document.querySelector('.panel-head p')?.textContent).toBe('chat.example'),
     );
+    expect(document.querySelector('.panel-head p')?.getAttribute('title')).toBe(
+      'Channel frame-chat',
+    );
+  });
+
+  it('removes a set immediately and restores it with Undo', async () => {
+    currentState.plugins.b!.enabled = true;
+    currentState.bindings['b|default'] = {
+      key: 'b|default',
+      pluginKey: 'b',
+      channelKey: 'default',
+      label: 'Chat B · default',
+      sets: ['set'],
+    };
+    setName = 'Before';
+    await import('../src/entrypoints/popup/main');
+    await vi.waitFor(() =>
+      expect(document.querySelector('.chip-label')?.textContent).toBe('Before'),
+    );
+    expect(document.querySelector('.panel-head p')?.textContent).toBe('chat.example');
+
+    const remove = document.querySelector<HTMLButtonElement>('.chip button')!;
+    remove.click();
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-message]')?.textContent).toContain('Set removed'),
+    );
+    expect(currentState.bindings['b|default']).toBeUndefined();
+    expect(mocks.rpc.mock.calls.some(([type]) => type === 'binding/remove')).toBe(true);
+
+    const undo = await vi.waitFor(() => {
+      const button = document.querySelector<HTMLButtonElement>('.notice-action');
+      expect(button).not.toBeNull();
+      return button as HTMLButtonElement;
+    });
+    undo.click();
+    await vi.waitFor(() =>
+      expect(document.querySelector('.chip-label')?.textContent).toBe('Before'),
+    );
+    expect(currentState.bindings['b|default']?.sets).toEqual(['set']);
+    expect(document.querySelector('[data-message]')?.textContent).toContain('Set restored');
   });
 
   it('clears presentation lookups before Reload emotes refreshes previews', async () => {

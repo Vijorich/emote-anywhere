@@ -102,9 +102,9 @@ A plugin describes **where** a chat is and **what** to read. It cannot run code.
 
 ## Emote priority
 
-1. Per-chat set (ordered list of 7TV sets).
+1. Chat set (ordered list of 7TV sets).
 2. Global sets (7TV sets that load in every chat).
-3. Auto: 7TV channel connected to the site (`chat.sevenTv`), when no per-chat set
+3. Auto: 7TV channel connected to the site (`chat.sevenTv`), when no chat set
    exists.
 4. Enabled custom sets.
 5. Global 7TV, BTTV, FFZ.
@@ -119,8 +119,8 @@ receive it on upgrade. An explicitly empty list stays empty.
 
 ## Settings and popup
 
-- `src/entrypoints/options` is a hash-routed app shell: Sources, Chat sets,
-  Settings and Help. One view per area; no long page of every setting.
+- `src/entrypoints/options` is a hash-routed app shell: Sources, Sets, Settings
+  and Help. One view per area; no long page of every setting.
   The manifest opens it in a full tab.
 - `src/entrypoints/popup` is the per-chat control surface: plugin state, the
   set for the open channel, reload and a link to the full options.

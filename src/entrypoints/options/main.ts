@@ -5,6 +5,7 @@ import type { AppSettings, AppState, InstalledPlugin } from '../../core/types';
 import { brand } from '../../ui/components';
 import { h } from '../../ui/dom';
 import { trackFocusModality } from '../../ui/focus-modality';
+import { noticeBanner as buildNotice, type Notice, type NoticeAction } from '../../ui/notice';
 import type { OptionsContext } from './context';
 import { bindingsView } from './views/bindings';
 import { helpView } from './views/help';
@@ -21,14 +22,14 @@ const version = browser.runtime.getManifest().version;
 
 let state: AppState | null = null;
 let view: ViewId = 'sources';
-let notice: { text: string; kind: 'ok' | 'error' } | null = null;
+let notice: Notice | null = null;
 let noticeTimer: number | null = null;
 let refreshTimer: number | null = null;
 let pendingRefresh = false;
 
 const VIEWS: Array<{ id: ViewId; label: string }> = [
   { id: 'sources', label: 'Sources' },
-  { id: 'bindings', label: 'Chat sets' },
+  { id: 'bindings', label: 'Sets' },
   { id: 'settings', label: 'Settings' },
   { id: 'help', label: 'Help' },
 ];
@@ -38,27 +39,30 @@ function parseHash(): void {
   view = (VIEWS.some((item) => item.id === name) ? name : 'sources') as ViewId;
 }
 
-function show(text: string, kind: 'ok' | 'error' = 'ok'): void {
-  notice = { text, kind };
+function show(text: string, kind: 'ok' | 'error' = 'ok', action?: NoticeAction): void {
+  notice = { text, kind, action };
   if (noticeTimer !== null) {
     window.clearTimeout(noticeTimer);
     noticeTimer = null;
   }
   if (state || kind !== 'error') {
-    noticeTimer = window.setTimeout(() => {
-      noticeTimer = null;
-      notice = null;
-      updateNotice();
-    }, 6000);
+    noticeTimer = window.setTimeout(
+      () => {
+        noticeTimer = null;
+        notice = null;
+        updateNotice();
+      },
+      action ? 8000 : 6000,
+    );
   }
   updateNotice();
 }
 
-async function refresh(message?: string): Promise<void> {
+async function refresh(message?: string, action?: NoticeAction): Promise<void> {
   try {
     state = await rpc<AppState>('state/get');
     render();
-    if (message) show(message);
+    if (message) show(message, 'ok', action);
   } catch (error) {
     show(error instanceof Error ? error.message : String(error), 'error');
     if (!state) render();
@@ -85,10 +89,14 @@ async function requestOrigin(url: string): Promise<boolean> {
   }
 }
 
-async function updateGlobalSets(sets: string[], message: string): Promise<void> {
+async function updateGlobalSets(
+  sets: string[],
+  message: string,
+  action?: NoticeAction,
+): Promise<void> {
   try {
     await rpc('globalBinding/set', { sets });
-    await refresh(message);
+    await refresh(message, action);
   } catch (error) {
     show(error instanceof Error ? error.message : String(error), 'error');
   }
@@ -130,13 +138,7 @@ function togglePlugin(plugin: InstalledPlugin, enabled: boolean): void {
 }
 
 function noticeBanner(): HTMLElement | null {
-  if (!notice) return null;
-  return h('div', {
-    class: notice.kind === 'error' ? 'banner error' : 'banner',
-    role: notice.kind === 'error' ? 'alert' : 'status',
-    'data-notice': 'true',
-    text: notice.text,
-  });
+  return notice ? buildNotice(notice, 'data-notice') : null;
 }
 
 function updateNotice(): void {

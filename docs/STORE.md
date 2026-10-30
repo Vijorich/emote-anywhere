@@ -34,7 +34,7 @@ Chat & IM (Firefox)
 > today; more chats can be added through the public registry.
 >
 > • 7TV, BTTV and FFZ global emotes
-> • Global and per-chat sets
+> • Global and chat sets
 > • Searchable emote picker with keyboard navigation
 > • Adjustable emote size
 > • Custom emote sets
