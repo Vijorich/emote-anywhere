@@ -8,6 +8,8 @@ entries before that were written by hand. Versions follow
 
 ## [1.0.0](https://github.com/Vijorich/emote-anywhere/compare/v0.5.2...v1.0.0) (2026-11-01)
 
+First stable release, prepared for the Chrome Web Store, Microsoft Edge
+Add-ons and Firefox Add-ons.
 
 ### ⚠ BREAKING CHANGES
 
@@ -15,7 +17,15 @@ entries before that were written by hand. Versions follow
 
 ### Bug Fixes
 
-* reject catastrophic regexes and require https FFZ image URLs ([a12206f](https://github.com/Vijorich/emote-anywhere/commit/a12206fa2e0a989654bcafc2b786fedba7e475fb))
+* reject catastrophic regexes and require https FFZ image URLs ([a12206f](https://github.com/Vijorich/emote-anywhere/commit/a12206fa2e0a989654bcafc2b786fedba7e475fb)): registry `urlRegex` rules are checked for the catastrophic-backtracking shape (star height ≥ 2) at validation time, channel matching runs against the first 500 URL characters, and FFZ emote images load only from `https:` URLs with protocol-relative normalization.
+
+### Documentation
+
+* rewrite the repository docs for a store-ready audience ([e9be1d3](https://github.com/Vijorich/emote-anywhere/commit/e9be1d3)): README restructured around install, features and privacy, CONTRIBUTING.md and SECURITY.md added, and docs/STORE.md turned into a full Chrome Web Store, Edge Add-ons and AMO submission guide.
+
+### Build and CI
+
+* derive version and changelog from conventional commits ([a46c154](https://github.com/Vijorich/emote-anywhere/commit/a46c154)): release-please opens the release pull request, packaging attaches the store zips automatically, and CI enforces commit subjects.
 
 ## [0.5.2] - 2026-10-30
 
