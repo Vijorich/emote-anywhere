@@ -1,8 +1,9 @@
 name: Release
 
-# Runs when release-please publishes the v<version> tag (after the release
-# pull request is merged). Builds the store packages and attaches them to the
-# release that release-please already created with its generated notes.
+# Manual rebuild tool: dispatch it on a v<version> tag to repackage a release
+# and re-attach the store zips. Normal releases are packaged by
+# release-please.yml directly (a GITHUB_TOKEN-created tag does not trigger
+# `on: push: tags`).
 on:
   push:
     tags: ['v*']

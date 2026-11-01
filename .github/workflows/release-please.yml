@@ -1,5 +1,10 @@
 name: Release please
 
+# Opens the release pull request (version + CHANGELOG generated from
+# Conventional Commits). When that PR is merged, this workflow also packages
+# the release and attaches the store zips: a tag created with GITHUB_TOKEN
+# does not trigger `on: push: tags`, so the build cannot live in a separate
+# tag-triggered workflow.
 on:
   push:
     branches: [main]
@@ -12,7 +17,56 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - id: release
+        uses: googleapis/release-please-action@v4
         with:
           config-file: .release-please-config.json
+
+  package:
+    needs: release-please
+    if: needs.release-please.outputs.releases_created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name || 'main' }}
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.15.0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Wait for the public registry
+        run: |
+          url=$(sed -n 's/^WXT_DEFAULT_REGISTRY_URL=//p' .env.production)
+          for _ in $(seq 1 20); do
+            if curl -fsS "$url" >/dev/null; then exit 0; fi
+            sleep 15
+          done
+          echo "Registry is not reachable: $url" >&2
+          exit 1
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm release:check
+
+      - run: pnpm typecheck
+
+      - run: pnpm test
+
+      - run: pnpm zip
+
+      - run: pnpm zip:firefox
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: .output/*.zip
