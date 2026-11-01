@@ -38,6 +38,7 @@
     "registry": "node scripts/serve-registry.mjs",
     "dev:page": "node scripts/serve-dev.mjs",
     "release:check": "node scripts/check-release.mjs",
+    "commits:check": "node scripts/check-commits.mjs",
     "preview": "vite --config dev/ui/vite.config.ts",
     "postinstall": "wxt prepare"
   },

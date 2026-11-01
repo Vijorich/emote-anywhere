@@ -1,45 +1,32 @@
 name: Release
 
+# Runs when release-please publishes the v<version> tag (after the release
+# pull request is merged). Builds the store packages and attaches them to the
+# release that release-please already created with its generated notes.
 on:
   push:
-    branches: [main]
-    paths:
-      - package.json
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  package:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
-      - id: version
-        run: echo "value=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
-
-      - id: tag
-        run: |
-          if git ls-remote --exit-code --tags origin "refs/tags/v${{ steps.version.outputs.value }}" >/dev/null; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "v${{ steps.version.outputs.value }} already exists; skipping release."
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - if: steps.tag.outputs.exists == 'false'
-        uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@v6
         with:
           version: 12.15.0
 
-      - if: steps.tag.outputs.exists == 'false'
-        uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
 
-      - if: steps.tag.outputs.exists == 'false'
+      - name: Wait for the public registry
         run: |
           url=$(sed -n 's/^WXT_DEFAULT_REGISTRY_URL=//p' .env.production)
           for _ in $(seq 1 20); do
@@ -49,31 +36,20 @@ jobs:
           echo "Registry is not reachable: $url" >&2
           exit 1
 
-      - if: steps.tag.outputs.exists == 'false'
-        run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
 
-      - if: steps.tag.outputs.exists == 'false'
-        run: pnpm release:check
+      - run: pnpm release:check
 
-      - if: steps.tag.outputs.exists == 'false'
-        run: node scripts/changelog-section.mjs "${{ steps.version.outputs.value }}" > release-notes.md
+      - run: pnpm typecheck
 
-      - if: steps.tag.outputs.exists == 'false'
-        run: pnpm typecheck
+      - run: pnpm test
 
-      - if: steps.tag.outputs.exists == 'false'
-        run: pnpm test
+      - run: pnpm zip
 
-      - if: steps.tag.outputs.exists == 'false'
-        run: pnpm zip
+      - run: pnpm zip:firefox
 
-      - if: steps.tag.outputs.exists == 'false'
-        run: pnpm zip:firefox
-
-      - if: steps.tag.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v3
+      # No body/body_path: the release and its notes already exist; this only
+      # uploads the zips to it.
+      - uses: softprops/action-gh-release@v3
         with:
-          tag_name: v${{ steps.version.outputs.value }}
-          name: Emote Anywhere v${{ steps.version.outputs.value }}
-          body_path: release-notes.md
           files: .output/*.zip
