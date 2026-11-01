@@ -1,5 +1,10 @@
 import type { ChannelRule } from './types';
 
+// Registry regexes are length-capped and star-height checked (validate.ts), but
+// a rule can still be polynomial; matching only a bounded URL prefix keeps the
+// worst case constant regardless of the page URL length.
+const MAX_HREF_CHARS = 500;
+
 function clean(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
   const trimmed = value.trim();
@@ -22,7 +27,8 @@ export function resolveChannelRule(
     }
     case 'urlRegex': {
       try {
-        const match = new RegExp(rule.regex).exec(href);
+        const subject = href.length > MAX_HREF_CHARS ? href.slice(0, MAX_HREF_CHARS) : href;
+        const match = subject.match(new RegExp(rule.regex));
         if (!match) return undefined;
         const index = rule.group ?? (match.length > 1 ? 1 : 0);
         return clean(match[index]);

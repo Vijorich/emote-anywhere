@@ -44,6 +44,34 @@ describe('plugin schema', () => {
     ).toThrow();
   });
 
+  it('rejects regex rules that can backtrack catastrophically', () => {
+    for (const regex of ['(a+)+', '(.*)*', '((a*)b)+', '(a?)+', '(?:\\w+\\s?)*']) {
+      expect(() =>
+        parsePluginDescriptor({
+          ...validPlugin,
+          chat: { ...validPlugin.chat, channel: { from: 'urlRegex', regex } },
+        }),
+      ).toThrow(/backtrack/);
+    }
+  });
+
+  it('accepts linear regex rules', () => {
+    for (const regex of [
+      '\\d+',
+      '/im/convo/(\\d+)',
+      '(?:gim/)?convo/(\\w+)',
+      '([a-z]+)\\?sel=([a-z0-9-]+)',
+      '(a|b)+c',
+    ]) {
+      expect(() =>
+        parsePluginDescriptor({
+          ...validPlugin,
+          chat: { ...validPlugin.chat, channel: { from: 'urlRegex', regex } },
+        }),
+      ).not.toThrow();
+    }
+  });
+
   it('accepts a single plugin as a registry', () => {
     const registry = parseRegistryIndex(validPlugin);
     expect(registry.plugins).toHaveLength(1);

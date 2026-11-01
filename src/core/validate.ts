@@ -36,6 +36,54 @@ class SchemaError extends Error {
   }
 }
 
+/**
+ * Detects quantified groups that contain a quantifier at any depth ("star
+ * height ≥ 2", e.g. `(a+)+`, `((a*)b)+`): the shape that backtracks
+ * exponentially. Registry regexes run against page URLs, so they must stay
+ * linear; authors rewrite the rare false positive instead.
+ */
+function hasNestedQuantifier(source: string): boolean {
+  const frames: boolean[] = []; // per open group: contains a quantifier at any depth
+  let lastAtomContainsQuantifier = false; // previous atom is a group with a quantifier inside
+  let inClass = false;
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === '\\') {
+      i++; // escaped character
+      lastAtomContainsQuantifier = false;
+    } else if (inClass) {
+      if (ch === ']') inClass = false; // quantifiers inside [...] are literal
+    } else if (ch === '[') {
+      inClass = true;
+      lastAtomContainsQuantifier = false;
+    } else if (ch === '(') {
+      frames.push(false);
+      if (source[i + 1] === '?') {
+        i += 2; // '(?' plus the group modifier: ':', '=', '!' or '<'
+        if (source[i] === '<' && (source[i + 1] === '=' || source[i + 1] === '!')) i++;
+      }
+      lastAtomContainsQuantifier = false;
+    } else if (ch === ')') {
+      const containsQuantifier = frames.pop() ?? false;
+      if (containsQuantifier && frames.length) frames[frames.length - 1] = true;
+      lastAtomContainsQuantifier = containsQuantifier;
+    } else if (ch === '?' || ch === '*' || ch === '+' || ch === '{') {
+      if (ch === '{') {
+        while (i + 1 < source.length && source[i + 1] !== '}') i++; // {n,m} is one quantifier
+      }
+      // Only unbounded repetition (`*`, `+`, `{n,m}`) applied to a group that
+      // already contains a quantifier is exponential; outer `?` is two paths.
+      if ((ch === '*' || ch === '+' || ch === '{') && lastAtomContainsQuantifier) return true;
+      if (frames.length) frames[frames.length - 1] = true;
+      if (source[i + 1] === '?') i++; // lazy modifier
+      lastAtomContainsQuantifier = false;
+    } else {
+      lastAtomContainsQuantifier = false;
+    }
+  }
+  return false;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -88,6 +136,12 @@ function parseChannelRule(value: unknown, path: string): ChannelRule {
         new RegExp(regex);
       } catch {
         throw new SchemaError(`${path}.regex`, 'invalid regular expression');
+      }
+      if (hasNestedQuantifier(regex)) {
+        throw new SchemaError(
+          `${path}.regex`,
+          'may backtrack catastrophically: a quantified group must not contain a quantifier',
+        );
       }
       const group = raw['group'];
       if (group !== undefined && (!Number.isInteger(group) || (group as number) < 0)) {

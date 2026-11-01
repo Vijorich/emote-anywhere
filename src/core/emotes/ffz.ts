@@ -18,6 +18,16 @@ interface FfzGlobal {
   sets?: Record<string, FfzSet>;
 }
 
+// The FFZ API returns https URLs, sometimes protocol-relative. Anything else
+// is not loaded; the CDN fallback below keeps the emote usable.
+function emoteUrl(raw: string | undefined): string | undefined {
+  const value = raw?.trim();
+  if (!value) return undefined;
+  if (value.startsWith('https://')) return value;
+  if (value.startsWith('//')) return `https:${value}`;
+  return undefined;
+}
+
 function normalize(sets: FfzSet[]): Emote[] {
   const seen = new Set<string>();
   const emotes: Emote[] = [];
@@ -28,10 +38,10 @@ function normalize(sets: FfzSet[]): Emote[] {
       seen.add(code);
       const urls = item.urls ?? {};
       const url =
-        urls['2'] ??
-        urls['1'] ??
-        urls['4'] ??
-        (item.id ? `https://cdn.frankerfacez.com/emoticon/${item.id}/2` : '');
+        emoteUrl(urls['2']) ??
+        emoteUrl(urls['1']) ??
+        emoteUrl(urls['4']) ??
+        (item.id ? `https://cdn.frankerfacez.com/emoticon/${item.id}/2` : undefined);
       if (!url) continue;
       emotes.push({ code, url, flags: 0, provider: 'ffz' });
     }

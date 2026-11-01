@@ -107,8 +107,11 @@ Rules are evaluated in order; the first non-empty result wins:
 ```
 
 - `urlParam`: `new URL(location.href).searchParams.get(param)`.
-- `urlRegex`: first match of the regex against the full URL. `group` defaults to 1
-  when the regex has a capture group, otherwise 0.
+- `urlRegex`: first match of the regex against the first 500 characters of the
+  URL. `group` defaults to 1 when the regex has a capture group, otherwise 0.
+  Patterns whose quantified groups contain a quantifier (star height ≥ 2, e.g.
+  `(a+)+`) are rejected at load time, and only the first 500 URL characters
+  are matched, so keep patterns linear.
 - `dom`: `querySelector(selector)?.getAttribute(attribute)`. The content script
   retries for up to 4 seconds, so SPA-rendered attributes are fine.
 - `constant`: same key for every page. Useful for single-chat sites.
@@ -210,7 +213,8 @@ Checklist before publishing:
 - No JavaScript, no remote code, no `eval`. The loader only parses JSON.
 - Selectors are passed to `querySelector`/`closest`. Invalid selectors are logged and
   ignored; they cannot execute anything.
-- `urlRegex` runs against the page URL only. Keep it simple and anchored.
+- `urlRegex` runs against the page URL only, is length-capped, and must stay
+  linear: a quantified group containing a quantifier is rejected at load.
 - Auto-channel lookups accept only values in documented platform ID formats. Other
   page or URL values are rejected before any 7TV request.
 - Emote image URLs come from providers or a user's custom set; a plugin cannot add

@@ -306,4 +306,40 @@ describe('FFZ provider', () => {
     await expect(fetchFfzGlobal()).resolves.toEqual([]);
     await expect(fetchFfzGlobal()).resolves.toEqual([]);
   });
+
+  it('normalizes protocol-relative URLs and drops non-https ones', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        default_sets: [1],
+        sets: {
+          '1': {
+            emoticons: [
+              { id: 21, name: 'Relative', urls: { '2': '//cdn.frankerfacez.com/emoticon/21/2' } },
+              {
+                id: 22,
+                name: 'Insecure',
+                urls: { '1': 'http://cdn.frankerfacez.com/emoticon/22/1' },
+              },
+              { name: 'Unknown', urls: { '2': 'ftp://cdn.frankerfacez.com/emoticon/23/2' } },
+            ],
+          },
+        },
+      }),
+    );
+
+    await expect(fetchFfzGlobal()).resolves.toEqual([
+      {
+        code: 'Relative',
+        url: 'https://cdn.frankerfacez.com/emoticon/21/2',
+        flags: 0,
+        provider: 'ffz',
+      },
+      {
+        code: 'Insecure',
+        url: 'https://cdn.frankerfacez.com/emoticon/22/2',
+        flags: 0,
+        provider: 'ffz',
+      },
+    ]);
+  });
 });

@@ -157,7 +157,10 @@ receive it on upgrade. An explicitly empty list stays empty.
   revoking it in the browser triggers a resync and teardown.
 - Custom emote image URLs must be `https:` or `data:image/`. A page's own CSP can
   still block them; the extension does not proxy custom set images.
-- Regex rules run on URLs, not message text, so ReDoS surface is small.
+- Regex rules run on URLs, not message text. Validation rejects patterns whose
+  quantified groups contain a quantifier (star height ≥ 2, the
+  catastrophic-backtracking shape), and matching runs against the first 500
+  characters of the URL, so both the pattern and the subject are bounded.
 
 ## Firefox notes
 
