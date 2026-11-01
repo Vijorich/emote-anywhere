@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches-ignore:
+      # release-please PRs come from GITHUB_TOKEN; their workflow runs wait
+      # for approval and die as "failure" when the PR merges. Main runs the
+      # same checks on the merged commit right after.
+      - 'release-please--**'
 
 concurrency:
   group: ci-${{ github.ref }}
