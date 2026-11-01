@@ -6,6 +6,17 @@ from Conventional Commit subjects when a release pull request is merged;
 entries before that were written by hand. Versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0](https://github.com/Vijorich/emote-anywhere/compare/v0.5.2...v1.0.0) (2026-11-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* registry plugins that use nested-quantifier urlRegex patterns are rejected at load; authors must rewrite them as linear patterns.
+
+### Bug Fixes
+
+* reject catastrophic regexes and require https FFZ image URLs ([a12206f](https://github.com/Vijorich/emote-anywhere/commit/a12206fa2e0a989654bcafc2b786fedba7e475fb))
+
 ## [0.5.2] - 2026-10-30
 
 ### Fixed
