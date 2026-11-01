@@ -24,7 +24,10 @@ export default defineConfig({
           browser_specific_settings: {
             gecko: {
               id: 'emote-anywhere@vijorich.github.io',
-              strict_min_version: '128.0',
+              // 142 is the first Firefox for Android that understands
+              // data_collection_permissions (140 on desktop); stay at or
+              // above it so the manifest never contradicts itself.
+              strict_min_version: '142.0',
               data_collection_permissions: {
                 required: ['none'],
               },

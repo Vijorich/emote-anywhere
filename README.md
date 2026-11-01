@@ -20,7 +20,7 @@ release**.
   [GitHub release](https://github.com/Vijorich/emote-anywhere/releases), unzip,
   then `chrome://extensions` → Developer mode → Load unpacked. (Store listing
   pending.)
-- **Firefox 128+**: download `emote-anywhere-<version>-firefox.zip`, open
+- **Firefox 142+**: download `emote-anywhere-<version>-firefox.zip`, open
   `about:debugging` → This Firefox → Load Temporary Add-on → pick the zip's
   `manifest.json`. A signed store listing is pending; temporary add-ons reset
   on browser restart.

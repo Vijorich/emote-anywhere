@@ -11,9 +11,10 @@ const MARK = `
 
 /** Inline SVG so the mark inherits currentColor. */
 export function brandMark(): SVGElement {
-  const template = document.createElement('template');
-  template.innerHTML = MARK.trim();
-  return template.content.firstElementChild as SVGElement;
+  // DOMParser, not innerHTML: same constant, but nothing for store
+  // validators to flag and no HTML-parser detour for an SVG document.
+  const parsed = new DOMParser().parseFromString(MARK, 'image/svg+xml');
+  return document.importNode(parsed.documentElement, true) as unknown as SVGElement;
 }
 
 export function brand(): HTMLElement {
