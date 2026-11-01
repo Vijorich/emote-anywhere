@@ -6,6 +6,13 @@ from Conventional Commit subjects when a release pull request is merged;
 entries before that were written by hand. Versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1](https://github.com/Vijorich/emote-anywhere/compare/v1.0.0...v1.0.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* satisfy the AMO validator ([c00a551](https://github.com/Vijorich/emote-anywhere/commit/c00a5515616a9267c2c4304e552c1076ac0be077))
+
 ## [1.0.0](https://github.com/Vijorich/emote-anywhere/compare/v0.5.2...v1.0.0) (2026-11-01)
 
 First stable release, prepared for the Chrome Web Store, Microsoft Edge
