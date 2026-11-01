@@ -4,6 +4,7 @@ node_modules/
 dist/
 dev/ui/dist/
 .taste-skill/
+.mimosa/
 *.zip
 .env
 .env.local
