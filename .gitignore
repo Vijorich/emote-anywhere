@@ -5,6 +5,9 @@ dist/
 dev/ui/dist/
 .taste-skill/
 .mimosa/
+.agents/
+.opencode/
+AGENTS.md
 *.zip
 .env
 .env.local
