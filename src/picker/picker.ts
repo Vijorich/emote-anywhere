@@ -213,6 +213,7 @@ button, input { font: inherit; color: inherit; }
 }
 .zoom[hidden] { display: none; }
 .zoom-card {
+  position: relative;
   display: grid; justify-items: center; gap: 16px;
   max-width: min(320px, calc(100vw - 32px));
   max-height: calc(100dvh - 24px);
@@ -234,10 +235,12 @@ button, input { font: inherit; color: inherit; }
   text-overflow: ellipsis; white-space: nowrap;
 }
 .zoom-flag {
-  display: inline-flex; gap: 6px; align-items: center; min-height: 24px;
-  padding: 0 8px; border-radius: 6px;
+  position: absolute; top: 8px; right: 8px; z-index: 1;
+  display: inline-flex; gap: 5px; align-items: center; min-height: 22px;
+  padding: 0 7px; border-radius: 6px;
   background: var(--ea-overlay-soft); color: var(--ea-overlay);
   font-size: 12px; font-weight: 600; line-height: 1;
+  pointer-events: none;
 }
 .zoom-flag svg { display: block; width: 14px; height: 14px; }
 @keyframes ea-zoom-in {
