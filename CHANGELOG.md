@@ -6,6 +6,19 @@ from Conventional Commit subjects when a release pull request is merged;
 entries before that were written by hand. Versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4](https://github.com/Vijorich/emote-anywhere/compare/v1.0.1...v1.0.4) (2026-11-02)
+
+
+### Features
+
+* add popup emote size and refine picker feedback ([a4530c7](https://github.com/Vijorich/emote-anywhere/commit/a4530c75e55bd5a2932e4573e7141dfcb1a24e1c))
+
+
+### Bug Fixes
+
+* keep overlay state visible in the emote picker ([a6889d8](https://github.com/Vijorich/emote-anywhere/commit/a6889d886cc5e6d6b16b893b6b888f4b41e9047a))
+* keep the picker preview size stable ([0934bef](https://github.com/Vijorich/emote-anywhere/commit/0934befc719b1b1d444ed9390d5d0f65f9e66d4f))
+
 ## [1.0.1](https://github.com/Vijorich/emote-anywhere/compare/v1.0.0...v1.0.1) (2026-11-01)
 
 
