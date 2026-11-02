@@ -6,6 +6,12 @@ from Conventional Commit subjects when a release pull request is merged;
 entries before that were written by hand. Versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3](https://github.com/Vijorich/emote-anywhere/compare/v1.0.2...v1.0.3) (2026-11-02)
+
+### Bug Fixes
+
+* keep overlay state visible in the emote picker ([3c19d91](https://github.com/Vijorich/emote-anywhere/commit/3c19d913d7d15693ad92d27a0abd70deb743202e)): show Overlaying in the long-press preview, keep pink styling while a tile is selected or focused, and clear keyboard selection on empty clicks.
+
 ## [1.0.2](https://github.com/Vijorich/emote-anywhere/compare/v1.0.1...v1.0.2) (2026-11-02)
 
 ### Features
