@@ -10,7 +10,8 @@ state.
 - Neutral greens tint the frame, sheet, raised and active surfaces so the UI sits
   between light and dark chat themes without turning blue or grey.
 - Red and amber are reserved for destructive actions, errors and warnings. No
-  fourth hue.
+  fourth hue, except the picker's Overlaying marker, which keeps 7TV's platform
+  pink (`#fc8dc7` dark, `#a81b66` light) because the icon is a type label.
 
 ## Type
 

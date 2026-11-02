@@ -1,8 +1,10 @@
 import './style.css';
 import { browser } from 'wxt/browser';
 import { bindingKey } from '../../core/channel';
+import { MAX_EMOTE_SCALE, MIN_EMOTE_SCALE } from '../../core/config';
 import { rpc } from '../../core/rpc';
 import type {
+  AppSettings,
   AppState,
   Binding,
   ContentContext,
@@ -11,7 +13,14 @@ import type {
   SevenTvSetInfo,
 } from '../../core/types';
 import { matchSpecificity, urlMatchesAny } from '../../core/url-match';
-import { bindingLabel, brandMark, plural, shortId, switchRow } from '../../ui/components';
+import {
+  bindingLabel,
+  brandMark,
+  crossIcon,
+  plural,
+  shortId,
+  switchRow,
+} from '../../ui/components';
 import { h } from '../../ui/dom';
 import { trackFocusModality } from '../../ui/focus-modality';
 import { clearSetLookupCache, lookupSet, setUrl } from '../../ui/sets';
@@ -114,12 +123,15 @@ function setChip(setId: string, onRemove: () => void): HTMLElement {
     rel: 'noreferrer',
     text: shortId(setId),
   });
-  const remove = h('button', {
-    type: 'button',
-    text: '×',
-    'aria-label': `Remove set ${shortId(setId)}`,
-    onclick: onRemove,
-  });
+  const remove = h(
+    'button',
+    {
+      type: 'button',
+      'aria-label': `Remove set ${shortId(setId)}`,
+      onclick: onRemove,
+    },
+    crossIcon(12),
+  );
   const chip = h('span', { class: 'chip', title: setId }, label, remove);
   void lookupSet(setId).then((info) => {
     if (!info) return;
@@ -302,6 +314,63 @@ function pluginCard(plugin: InstalledPlugin): HTMLElement {
   );
 }
 
+function sizeCard(settings: AppSettings): HTMLElement {
+  const output = h('span', {
+    class: 'range-value num',
+    text: `${settings.emoteScale.toFixed(1)}×`,
+  });
+  const input = h('input', {
+    type: 'range',
+    min: String(MIN_EMOTE_SCALE),
+    max: String(MAX_EMOTE_SCALE),
+    step: '0.1',
+    value: String(settings.emoteScale),
+    'aria-label': 'Emote size',
+  });
+  const syncFill = (): void => {
+    const percent =
+      ((Number(input.value) - MIN_EMOTE_SCALE) / (MAX_EMOTE_SCALE - MIN_EMOTE_SCALE)) * 100;
+    input.style.setProperty('--fill', `${percent}%`);
+  };
+  let pending: number | null = null;
+  let sent = settings.emoteScale;
+  const commit = (): void => {
+    if (pending !== null) {
+      window.clearTimeout(pending);
+      pending = null;
+    }
+    const next = Number(input.value);
+    if (next === sent) return;
+    sent = next;
+    void rpc<AppSettings>('settings/update', { patch: { emoteScale: next } })
+      .then((nextSettings) => {
+        if (state) state.settings = nextSettings;
+      })
+      .catch((error: unknown) => {
+        console.error(error);
+      });
+  };
+  input.addEventListener('input', () => {
+    const next = Number(input.value);
+    output.textContent = `${next.toFixed(1)}×`;
+    syncFill();
+    if (pending !== null) window.clearTimeout(pending);
+    pending = window.setTimeout(() => {
+      pending = null;
+      commit();
+    }, 120);
+  });
+  input.addEventListener('change', commit);
+  syncFill();
+
+  return h(
+    'section',
+    { class: 'panel size-panel' },
+    h('h2', { text: 'Emote size' }),
+    h('div', { class: 'range-row' }, h('div', { class: 'range-control' }, input, output)),
+  );
+}
+
 function togglePlugin(plugin: InstalledPlugin, enabled: boolean): void {
   void (async () => {
     if (!enabled) {
@@ -424,8 +493,10 @@ function render(): void {
 
   app.append(pluginCard(plugin));
 
+  if (plugin.enabled && context) app.append(bindingCard(plugin));
+  app.append(sizeCard(state.settings));
+
   if (plugin.enabled) {
-    if (context) app.append(bindingCard(plugin));
     const reloadButton = h('button', {
       class: 'btn quiet',
       type: 'button',

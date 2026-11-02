@@ -594,7 +594,7 @@ h3[tabindex='-1']:focus-visible {
   color: var(--text);
   font-size: var(--fs-body);
   font-weight: 600;
-  line-height: 1;
+  line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease;
@@ -680,6 +680,7 @@ h3[tabindex='-1']:focus-visible {
   background: var(--raised);
   color: var(--text);
   font-size: var(--fs-body);
+  line-height: normal;
   transition: background-color 120ms ease, box-shadow 120ms ease;
 }
 
@@ -934,6 +935,10 @@ html.input-pointer .textarea:focus {
   color: var(--muted);
   font: inherit;
   cursor: pointer;
+}
+
+.chip button svg {
+  display: block;
 }
 
 .chip button:hover {

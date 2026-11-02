@@ -17,6 +17,24 @@ export function brandMark(): SVGElement {
   return document.importNode(parsed.documentElement, true) as unknown as SVGElement;
 }
 
+/** SVG cross: glyphs like × sit on the font baseline, not in the middle of a button. */
+export function crossIcon(size = 16): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('width', String(size));
+  svg.setAttribute('height', String(size));
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS(ns, 'path');
+  path.setAttribute('d', 'M4 4l8 8M12 4l-8 8');
+  path.setAttribute('stroke', 'currentColor');
+  path.setAttribute('stroke-width', '1.6');
+  path.setAttribute('stroke-linecap', 'round');
+  svg.append(path);
+  return svg;
+}
+
 export function brand(): HTMLElement {
   return h('a', { class: 'brand', href: '#sources' }, brandMark(), h('span', { class: 'brand-name', text: 'Emote Anywhere' }));
 }
