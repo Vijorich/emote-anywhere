@@ -6,6 +6,35 @@ from Conventional Commit subjects when a release pull request is merged;
 entries before that were written by hand. Versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0](https://github.com/Vijorich/emote-anywhere/compare/v1.0.2...v2.0.0) (2026-11-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* registry plugins that use nested-quantifier urlRegex patterns are rejected at load; authors must rewrite them as linear patterns.
+
+### Features
+
+* add popup emote size and refine picker feedback ([9888835](https://github.com/Vijorich/emote-anywhere/commit/98888352ed985c3b9ebedaf7295dfcbcd6177406))
+* configurable emote size, default 1.2x ([0c129d1](https://github.com/Vijorich/emote-anywhere/commit/0c129d180f71c69419fceb188ec31aa5aa33013c))
+* emote engine with declarative chat plugins ([050721f](https://github.com/Vijorich/emote-anywhere/commit/050721f76b0964d9967ae25fbffc2371f6348279))
+* prepare emote-anywhere 0.1.0 public release ([d8336f7](https://github.com/Vijorich/emote-anywhere/commit/d8336f7a3a68a2b1c3234db4cec50e9bc1862ddb))
+* release 0.2.0 ([08142fd](https://github.com/Vijorich/emote-anywhere/commit/08142fda62315284d4d0d017e8bd9bdbcf672200))
+* release 0.3.0 ([b2e130d](https://github.com/Vijorich/emote-anywhere/commit/b2e130dcf16f72842882b137a96bd8719576ad2e))
+* release 0.4.0 ([590cd91](https://github.com/Vijorich/emote-anywhere/commit/590cd914437f9488b9616e35c0d5047582a828d6))
+* release 0.5.0 ([93a9c63](https://github.com/Vijorich/emote-anywhere/commit/93a9c63cebb9838c81b67d41df88413282d5ccbc))
+
+
+### Bug Fixes
+
+* exit cleanly when registry port is already in use ([4548aa6](https://github.com/Vijorich/emote-anywhere/commit/4548aa640993f4b4bca2874b1c613a3458f79b8e))
+* reject catastrophic regexes and require https FFZ image URLs ([a12206f](https://github.com/Vijorich/emote-anywhere/commit/a12206fa2e0a989654bcafc2b786fedba7e475fb))
+* release 0.5.1 ([93be832](https://github.com/Vijorich/emote-anywhere/commit/93be832adb93d7ec5157aae7d1e7c63b0602fcaa))
+* release 0.5.2 ([e9c5e88](https://github.com/Vijorich/emote-anywhere/commit/e9c5e88247f7f72b482f7806c1b3a25c0fd32ca2))
+* release 1.0.2 ([bee6bb0](https://github.com/Vijorich/emote-anywhere/commit/bee6bb0e70b01cbf811d3c16207992338bcad68e))
+* restore the popup size ([c1c1642](https://github.com/Vijorich/emote-anywhere/commit/c1c164287a1c4a2aa1f062d1135d2d506dd9654d))
+* satisfy the AMO validator ([c00a551](https://github.com/Vijorich/emote-anywhere/commit/c00a5515616a9267c2c4304e552c1076ac0be077))
+
 ## [1.0.2](https://github.com/Vijorich/emote-anywhere/compare/v1.0.1...v1.0.2) (2026-11-02)
 
 ### Features
