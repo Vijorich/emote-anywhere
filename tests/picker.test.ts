@@ -259,6 +259,16 @@ describe('EmotePicker composer selection', () => {
     expect(overlay!.classList.contains('overlay')).toBe(true);
     expect(overlay!.querySelector('.overlay-badge svg')).not.toBeNull();
     expect(overlay!.getAttribute('aria-label')).toBe('overlay, overlaying emote');
+
+    key(ui().input, 'ArrowDown');
+    key(ui().input, 'ArrowRight');
+    expect(overlay!.classList.contains('selected')).toBe(true);
+    expect(overlay!.classList.contains('overlay')).toBe(true);
+
+    key(ui().input, 'Enter', { shiftKey: true });
+    const flag = ui().zoom.querySelector<HTMLElement>('.zoom-flag');
+    expect(flag?.hidden).toBe(false);
+    expect(flag?.textContent).toBe('Overlaying');
   });
 
   it('saves the caret on FAB pointerdown before focus moves', () => {
@@ -400,6 +410,23 @@ describe('EmotePicker keyboard grid', () => {
     key(originalCells[2]!, 'Enter');
     expect(composer.textContent).toBe('ABtwo ');
     expect(shadow.activeElement).toBe(input);
+  });
+
+  it('clears keyboard selection when clicking an empty part of the panel', () => {
+    contentComposer();
+    startPicker();
+    openFromFab();
+    const { grid, input } = ui();
+    const first = cells()[0]!;
+
+    first.focus();
+    expect(first.classList.contains('selected')).toBe(true);
+    expect(input.getAttribute('aria-activedescendant')).toBe(first.id);
+
+    grid.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+
+    expect(ui().grid.querySelector('.cell.selected')).toBeNull();
+    expect(input.getAttribute('aria-activedescendant')).toBeNull();
   });
 
   it('opens the full-size preview with Shift+Enter and closes it with Escape', () => {
