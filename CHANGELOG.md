@@ -6,6 +6,16 @@ from Conventional Commit subjects when a release pull request is merged;
 entries before that were written by hand. Versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2](https://github.com/Vijorich/emote-anywhere/compare/v1.0.1...v1.0.2) (2026-11-02)
+
+### Features
+
+* add a preview-free emote size slider to the popup ([9888835](https://github.com/Vijorich/emote-anywhere/commit/98888352ed985c3b9ebedaf7295dfcbcd6177406))
+
+### Bug Fixes
+
+* mark 7TV overlaying emotes, keep the press-scale effect under the pointer, and centre icon buttons and form text ([9888835](https://github.com/Vijorich/emote-anywhere/commit/98888352ed985c3b9ebedaf7295dfcbcd6177406))
+
 ## [1.0.1](https://github.com/Vijorich/emote-anywhere/compare/v1.0.0...v1.0.1) (2026-11-01)
 
 
