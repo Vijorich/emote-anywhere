@@ -6,6 +6,26 @@ from Conventional Commit subjects when a release pull request is merged;
 entries before that were written by hand. Versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4](https://github.com/Vijorich/emote-anywhere/compare/v1.0.1...v1.0.4) (2026-11-02)
+
+
+### Features
+
+* add popup emote size and refine picker feedback ([9888835](https://github.com/Vijorich/emote-anywhere/commit/98888352ed985c3b9ebedaf7295dfcbcd6177406))
+
+
+### Bug Fixes
+
+* keep overlay state visible in the emote picker ([3c19d91](https://github.com/Vijorich/emote-anywhere/commit/3c19d913d7d15693ad92d27a0abd70deb743202e))
+* keep the picker preview size stable ([420e064](https://github.com/Vijorich/emote-anywhere/commit/420e064ddacc15bd074ab8b0c4d520ba025efda0))
+* release 1.0.2 ([bee6bb0](https://github.com/Vijorich/emote-anywhere/commit/bee6bb0e70b01cbf811d3c16207992338bcad68e))
+* release 1.0.3 ([6823388](https://github.com/Vijorich/emote-anywhere/commit/6823388268ce1677a98bf0d95eef925cf12f88a2))
+
+
+### Miscellaneous Chores
+
+* reset manual release metadata ([b7e94c4](https://github.com/Vijorich/emote-anywhere/commit/b7e94c40276ac0a32dd1dab686cab3a9bbaa2249))
+
 ## [1.0.1](https://github.com/Vijorich/emote-anywhere/compare/v1.0.0...v1.0.1) (2026-11-01)
 
 
