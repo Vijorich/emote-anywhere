@@ -121,6 +121,7 @@ button, input { font: inherit; color: inherit; }
   outline: none;
   box-shadow: 0 0 0 2px var(--ea-accent);
 }
+.cell.overlay:focus-visible { box-shadow: 0 0 0 2px var(--ea-overlay); }
 .panel {
   position: fixed; right: 24px; bottom: 144px;
   width: min(440px, calc(100% - 48px));
@@ -187,7 +188,10 @@ button, input { font: inherit; color: inherit; }
 .cell.selected { background: var(--ea-accent-soft); box-shadow: inset 0 0 0 2px var(--ea-accent); }
 .cell.overlay { background: var(--ea-overlay-soft); }
 .cell.overlay:hover { background: var(--ea-overlay-hover); }
-.cell.overlay.selected { background: var(--ea-accent-soft); }
+.cell.overlay.selected {
+  background: var(--ea-overlay-soft);
+  box-shadow: inset 0 0 0 2px var(--ea-overlay);
+}
 .cell img { max-width: 32px; max-height: 32px; width: auto; height: auto; display: block; pointer-events: none; }
 .overlay-badge {
   position: absolute; top: 2px; right: 2px;
@@ -229,6 +233,13 @@ button, input { font: inherit; color: inherit; }
   font-size: 13px; font-weight: 700; letter-spacing: 0.01em; line-height: 1.3;
   text-overflow: ellipsis; white-space: nowrap;
 }
+.zoom-flag {
+  display: inline-flex; gap: 6px; align-items: center; min-height: 24px;
+  padding: 0 8px; border-radius: 6px;
+  background: var(--ea-overlay-soft); color: var(--ea-overlay);
+  font-size: 12px; font-weight: 600; line-height: 1;
+}
+.zoom-flag svg { display: block; width: 14px; height: 14px; }
 @keyframes ea-zoom-in {
   from { opacity: 0; transform: scale(.94); }
   to { opacity: 1; transform: none; }
@@ -273,6 +284,7 @@ export class EmotePicker {
   private zoom: HTMLDivElement | null = null;
   private zoomImage: HTMLImageElement | null = null;
   private zoomCode: HTMLSpanElement | null = null;
+  private zoomFlag: HTMLSpanElement | null = null;
   private visible: ChatEmote[] = [];
   private selected = -1;
   private open = false;
@@ -432,6 +444,7 @@ export class EmotePicker {
     this.zoom = null;
     this.zoomImage = null;
     this.zoomCode = null;
+    this.zoomFlag = null;
     this.composer = null;
     this.savedRange = null;
     this.open = false;
@@ -543,6 +556,10 @@ export class EmotePicker {
     panel.setAttribute('aria-modal', 'true');
     panel.setAttribute('aria-label', 'Emote picker');
     panel.addEventListener('keydown', (event) => this.onPanelKeyDown(event));
+    panel.addEventListener('click', (event) => {
+      const cell = (event.target as Element | null)?.closest('.cell');
+      if (!cell) this.clearSelection();
+    });
     fab.setAttribute('aria-controls', panel.id);
 
     const head = document.createElement('div');
@@ -629,7 +646,11 @@ export class EmotePicker {
     });
     const zoomCode = document.createElement('span');
     zoomCode.className = 'zoom-code';
-    zoomCard.append(zoomImage, zoomCode);
+    const zoomFlag = document.createElement('span');
+    zoomFlag.className = 'zoom-flag';
+    zoomFlag.hidden = true;
+    zoomFlag.append(overlayIcon(), document.createTextNode('Overlaying'));
+    zoomCard.append(zoomImage, zoomCode, zoomFlag);
     zoom.append(zoomCard);
 
     const status = document.createElement('div');
@@ -652,6 +673,7 @@ export class EmotePicker {
     this.zoom = zoom;
     this.zoomImage = zoomImage;
     this.zoomCode = zoomCode;
+    this.zoomFlag = zoomFlag;
   }
 
   private toggle(): void {
@@ -943,6 +965,7 @@ export class EmotePicker {
     this.previewing = true;
     this.previewCell = cell;
     this.zoomCode.textContent = emote.code;
+    if (this.zoomFlag) this.zoomFlag.hidden = !isZeroWidth(emote);
     image.alt = '';
     image.style.removeProperty('display');
     image.removeAttribute('src');
