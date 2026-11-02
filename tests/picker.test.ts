@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ZERO_WIDTH_DATA_FLAG } from '../src/core/emote-flags';
 import type { Emote, PluginDescriptor } from '../src/core/types';
 import { EmotePicker } from '../src/picker/picker';
 
@@ -206,6 +207,7 @@ describe('EmotePicker composer selection', () => {
         clientY: 10,
       }),
     );
+    expect(first.classList.contains('pressed')).toBe(true);
     vi.advanceTimersByTime(400);
 
     const { zoom } = ui();
@@ -224,14 +226,39 @@ describe('EmotePicker composer selection', () => {
       }),
     );
     expect(code()).toBe('one');
+    expect(first.classList.contains('pressed')).toBe(false);
+    expect(all[1]!.classList.contains('pressed')).toBe(true);
     expect(ui().grid.querySelector('.cell.selected')).toBeNull();
 
     document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, composed: true }));
     expect(zoom.hidden).toBe(true);
+    expect(ui().grid.querySelector('.cell.pressed')).toBeNull();
 
     first.click();
     expect(composer.textContent).toBe('AB');
     expect(ui().panel.hidden).toBe(false);
+  });
+
+  it('marks overlaying emotes in the grid without changing normal ones', () => {
+    const list: Emote[] = [
+      { code: 'normal', url: 'https://cdn.example/normal.png', flags: 0, provider: '7tv' },
+      {
+        code: 'overlay',
+        url: 'https://cdn.example/overlay.png',
+        flags: ZERO_WIDTH_DATA_FLAG,
+        provider: '7tv',
+      },
+    ];
+    contentComposer();
+    startPicker(descriptor(), list);
+    openFromFab();
+    const [normal, overlay] = cells();
+
+    expect(normal!.classList.contains('overlay')).toBe(false);
+    expect(normal!.querySelector('.overlay-badge')).toBeNull();
+    expect(overlay!.classList.contains('overlay')).toBe(true);
+    expect(overlay!.querySelector('.overlay-badge svg')).not.toBeNull();
+    expect(overlay!.getAttribute('aria-label')).toBe('overlay, overlaying emote');
   });
 
   it('saves the caret on FAB pointerdown before focus moves', () => {

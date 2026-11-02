@@ -98,6 +98,13 @@ function defaultRpc(type: string, payload: Record<string, unknown> = {}): unknow
   if (type === 'sevenTv/lookupSet') {
     return { id: 'set', name: setName, emoteCount: 1, preview: [] };
   }
+  if (type === 'settings/update') {
+    currentState.settings = {
+      ...currentState.settings,
+      ...(payload.patch as Partial<AppState['settings']>),
+    };
+    return currentState.settings;
+  }
   throw new Error(`Unexpected request: ${type}`);
 }
 
@@ -233,6 +240,28 @@ describe('popup UI', () => {
     await vi.waitFor(() => expect(currentState.bindings['b|default']).toBeUndefined());
     expect(mocks.rpc.mock.calls.some(([type]) => type === 'binding/remove')).toBe(true);
     await vi.waitFor(() => expect(document.querySelector('.chip')).toBeNull());
+  });
+
+  it('offers emote size as the last panel and saves slider changes', async () => {
+    currentState.plugins.b!.enabled = true;
+    await import('../src/entrypoints/popup/main');
+    await vi.waitFor(() =>
+      expect(document.querySelector('input[aria-label="Emote size"]')).not.toBeNull(),
+    );
+
+    const panels = [...document.querySelectorAll('.panel')];
+    expect(panels.at(-1)?.querySelector('input[aria-label="Emote size"]')).not.toBeNull();
+
+    const slider = document.querySelector<HTMLInputElement>('input[aria-label="Emote size"]')!;
+    expect(slider.value).toBe('1.2');
+    slider.value = '1.8';
+    slider.dispatchEvent(new Event('input', { bubbles: true }));
+    slider.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await vi.waitFor(() =>
+      expect(mocks.rpc).toHaveBeenCalledWith('settings/update', { patch: { emoteScale: 1.8 } }),
+    );
+    expect(document.querySelector('.range-value')?.textContent).toBe('1.8×');
   });
 
   it('clears presentation lookups before Reload emotes refreshes previews', async () => {

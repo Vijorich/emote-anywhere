@@ -1,7 +1,9 @@
+import { isZeroWidth } from '../core/emote-flags';
 import type { AppSettings, ChatEmote, PluginDescriptor } from '../core/types';
 import { queryAllFirst } from '../engine/dom';
 import { proxiedImage } from '../engine/image-fallback';
 import { PICKER_HOST_CLASS } from '../engine/render';
+import { crossIcon } from '../ui/components';
 import { insertIntoComposer } from './insert';
 
 const MAX_VISIBLE = 500;
@@ -46,6 +48,24 @@ function fabIcon(): SVGSVGElement {
   return svg;
 }
 
+/** 7TV's Phosphor stack icon; the site uses it for the Overlaying flag. */
+function overlayIcon(): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('width', '10');
+  svg.setAttribute('height', '10');
+  svg.setAttribute('viewBox', '0 0 256 256');
+  svg.setAttribute('fill', 'currentColor');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS(ns, 'path');
+  path.setAttribute(
+    'd',
+    'M10.05,110.42l112,64a12,12,0,0,0,11.9,0l112-64a12,12,0,0,0,0-20.84l-112-64a12,12,0,0,0-11.9,0l-112,64a12,12,0,0,0,0,20.84Zm118-60.6L215.81,100,128,150.18,40.19,100Zm122.42,92.23A12,12,0,0,1,246,158.42l-112,64a12,12,0,0,1-11.9,0l-112-64A12,12,0,1,1,22,137.58l106,60.6,106-60.6A12,12,0,0,1,250.42,142.05Z',
+  );
+  svg.append(path);
+  return svg;
+}
+
 const PANEL_CSS = `
 /* Mirror of the colour tokens in src/ui/theme.css. Update both. */
 :host {
@@ -59,6 +79,10 @@ const PANEL_CSS = `
   --ea-accent: #6cc79e;
   --ea-accent-ink: #0b0f0c;
   --ea-accent-soft: #16281f;
+  /* 7TV uses #fc8dc7 for the Overlaying flag. */
+  --ea-overlay: #fc8dc7;
+  --ea-overlay-soft: #2a1822;
+  --ea-overlay-hover: #34202b;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 @media (prefers-color-scheme: light) {
@@ -72,6 +96,9 @@ const PANEL_CSS = `
     --ea-accent: #17694e;
     --ea-accent-ink: #f6fbf8;
     --ea-accent-soft: #e2f0e9;
+    --ea-overlay: #a81b66;
+    --ea-overlay-soft: #fdeaf3;
+    --ea-overlay-hover: #fbd9e9;
   }
 }
 * { box-sizing: border-box; }
@@ -111,7 +138,8 @@ button, input { font: inherit; color: inherit; }
 .search {
   flex: 1; min-width: 0; min-height: 40px; padding: 0 16px;
   border: 0; border-radius: 8px;
-  background: var(--ea-raised); color: var(--ea-text); font-size: 16px;
+  background: var(--ea-raised); color: var(--ea-text);
+  font-size: 16px; line-height: normal;
   transition: background-color 120ms ease, box-shadow 120ms ease;
 }
 .search::placeholder { color: var(--ea-text); opacity: 0.68; }
@@ -125,11 +153,12 @@ button, input { font: inherit; color: inherit; }
 }
 .close {
   display: grid; place-items: center; width: 40px; height: 40px; padding: 0;
-  border: 0; border-radius: 8px; line-height: 1;
-  background: transparent; color: var(--ea-muted); font-size: 20px; cursor: pointer;
+  border: 0; border-radius: 8px;
+  background: transparent; color: var(--ea-muted); cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease;
 }
 .close:hover { background: var(--ea-control); color: var(--ea-text); }
+.close svg { display: block; }
 .grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
   gap: 8px; padding: 0 16px 16px; overflow-y: auto; align-content: start;
@@ -146,6 +175,7 @@ button, input { font: inherit; color: inherit; }
 .grid::-webkit-scrollbar-button { display: none; }
 .grid::-webkit-scrollbar-corner { background: transparent; }
 .cell {
+  position: relative;
   height: 48px; display: grid; place-items: center; padding: 8px;
   border: 0; border-radius: 8px; background: var(--ea-raised);
   cursor: pointer; overflow: hidden;
@@ -153,9 +183,18 @@ button, input { font: inherit; color: inherit; }
   -webkit-touch-callout: none; user-select: none; touch-action: manipulation;
 }
 .cell:hover { background: var(--ea-control); }
-.cell:active { transform: scale(.96); }
+.cell.pressed { transform: scale(.96); }
 .cell.selected { background: var(--ea-accent-soft); box-shadow: inset 0 0 0 2px var(--ea-accent); }
+.cell.overlay { background: var(--ea-overlay-soft); }
+.cell.overlay:hover { background: var(--ea-overlay-hover); }
+.cell.overlay.selected { background: var(--ea-accent-soft); }
 .cell img { max-width: 32px; max-height: 32px; width: auto; height: auto; display: block; pointer-events: none; }
+.overlay-badge {
+  position: absolute; top: 2px; right: 2px;
+  display: grid; place-items: center; width: 14px; height: 14px;
+  border-radius: 4px; background: var(--ea-surface); color: var(--ea-overlay);
+}
+.overlay-badge svg { display: block; }
 .cell-fallback {
   display: none; max-width: 100%;
   color: var(--ea-muted); font-size: 12px; font-weight: 700; line-height: 1.2;
@@ -196,7 +235,7 @@ button, input { font: inherit; color: inherit; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cell, .zoom-card { transition: none; animation: none; }
-  .cell:active { transform: none; }
+  .cell.pressed { transform: none; }
 }
 @media (pointer: coarse) {
   .fab { width: 48px; height: 48px; }
@@ -246,6 +285,7 @@ export class EmotePicker {
   private previewing = false;
   private renderTimer: number | null = null;
   private previewCell: HTMLButtonElement | null = null;
+  private pressedCell: HTMLButtonElement | null = null;
   private previewRects: Array<{ cell: HTMLButtonElement; left: number; right: number; top: number; bottom: number }> = [];
   private suppressClickUntil = 0;
   private keyboardFocus = false;
@@ -288,11 +328,18 @@ export class EmotePicker {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     this.pointerActive = true;
     const cell = (event.target as Element | null)?.closest<HTMLButtonElement>('.cell');
-    if (!cell) return;
+    if (!cell) {
+      this.cancelPress();
+      return;
+    }
     const index = Number(cell.dataset.index);
-    if (!Number.isInteger(index)) return;
+    if (!Number.isInteger(index)) {
+      this.cancelPress();
+      return;
+    }
     this.cancelPress();
     this.previewCell = null;
+    this.setPressedCell(cell);
     this.pressOrigin = { x: event.clientX, y: event.clientY };
     this.pressTimer = window.setTimeout(() => {
       this.pressTimer = null;
@@ -303,9 +350,12 @@ export class EmotePicker {
   private readonly onGridPointerMove = (event: PointerEvent): void => {
     if (this.previewing) {
       const cell = this.cellAt(event.clientX, event.clientY);
-      if (cell && cell !== this.previewCell) {
-        const index = Number(cell.dataset.index);
-        if (Number.isInteger(index)) this.showZoom(index, cell);
+      if (cell) {
+        this.setPressedCell(cell);
+        if (cell !== this.previewCell) {
+          const index = Number(cell.dataset.index);
+          if (Number.isInteger(index)) this.showZoom(index, cell);
+        }
       }
       return;
     }
@@ -519,7 +569,7 @@ export class EmotePicker {
     const close = document.createElement('button');
     close.type = 'button';
     close.className = 'close';
-    close.textContent = '×';
+    close.append(crossIcon(18));
     close.setAttribute('aria-label', 'Close emote picker');
     close.addEventListener('click', () => this.close(true));
     head.append(input, close);
@@ -836,12 +886,21 @@ export class EmotePicker {
       this.pressTimer = null;
     }
     this.pressOrigin = null;
+    this.setPressedCell(null);
+  }
+
+  private setPressedCell(cell: HTMLButtonElement | null): void {
+    if (this.pressedCell === cell) return;
+    this.pressedCell?.classList.remove('pressed');
+    this.pressedCell = cell;
+    cell?.classList.add('pressed');
   }
 
   private hideZoom(): void {
     this.previewing = false;
     this.previewCell = null;
     this.previewRects = [];
+    this.setPressedCell(null);
     if (this.zoom) this.zoom.hidden = true;
     this.zoomImage?.removeAttribute('src');
   }
@@ -935,6 +994,7 @@ export class EmotePicker {
 
   private renderGrid(): void {
     if (!this.grid) return;
+    this.setPressedCell(null);
     const filter = this.input?.value.trim().toLowerCase() ?? '';
     const filtered = filter
       ? this.searchIndex
@@ -979,14 +1039,15 @@ export class EmotePicker {
     } else {
       const fragment = document.createDocumentFragment();
       this.visible.forEach((emote, index) => {
+        const overlay = isZeroWidth(emote);
         const cell = document.createElement('button');
         cell.type = 'button';
         cell.id = `ea-emote-${index}`;
-        cell.className = index === this.selected ? 'cell selected' : 'cell';
+        cell.className = `cell${overlay ? ' overlay' : ''}${index === this.selected ? ' selected' : ''}`;
         cell.dataset.index = String(index);
-        cell.title = emote.code;
+        cell.title = overlay ? `${emote.code} · Overlaying` : emote.code;
         cell.setAttribute('role', 'option');
-        cell.setAttribute('aria-label', emote.code);
+        cell.setAttribute('aria-label', overlay ? `${emote.code}, overlaying emote` : emote.code);
         cell.setAttribute('aria-selected', String(index === this.selected));
         cell.tabIndex = index === this.selected || (this.selected < 0 && index === 0) ? 0 : -1;
         const img = document.createElement('img');
@@ -1018,6 +1079,13 @@ export class EmotePicker {
           );
         }
         cell.append(img, fallback);
+        if (overlay) {
+          const badge = document.createElement('span');
+          badge.className = 'overlay-badge';
+          badge.setAttribute('aria-hidden', 'true');
+          badge.append(overlayIcon());
+          cell.append(badge);
+        }
         fragment.append(cell);
       });
       if (filtered.length > MAX_VISIBLE) {

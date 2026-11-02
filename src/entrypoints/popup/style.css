@@ -195,6 +195,14 @@ body {
   padding: 0 var(--space-1) var(--space-1);
 }
 
+.size-panel .range-row {
+  margin-top: var(--space-3);
+}
+
+.size-panel .range-control {
+  flex: 1;
+}
+
 .empty-panel {
   display: grid;
   gap: var(--space-2);
