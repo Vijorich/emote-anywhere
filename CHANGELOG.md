@@ -6,6 +6,13 @@ from Conventional Commit subjects when a release pull request is merged;
 entries before that were written by hand. Versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0](https://github.com/Vijorich/emote-anywhere/compare/v1.0.4...v1.1.0) (2026-11-10)
+
+
+### Features
+
+* **emotes:** make loading resilient with caches and fallbacks ([8c7690e](https://github.com/Vijorich/emote-anywhere/commit/8c7690e169225a8a72db4cd419f9f5141900e48f))
+
 ## [1.0.4](https://github.com/Vijorich/emote-anywhere/compare/v1.0.1...v1.0.4) (2026-11-02)
 
 
