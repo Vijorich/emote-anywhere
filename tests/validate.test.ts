@@ -135,6 +135,20 @@ describe('settings', () => {
     expect(normalizeSettings(undefined, DEFAULT_SETTINGS).emoteScale).toBe(1.2);
     expect(normalizeSettings({ emoteScale: 0.1 }, DEFAULT_SETTINGS).emoteScale).toBe(0.5);
     expect(normalizeSettings({ emoteScale: 9 }, DEFAULT_SETTINGS).emoteScale).toBe(3);
+    expect(normalizeSettings({}, DEFAULT_SETTINGS).providers.twitch).toBe(true);
+    expect(normalizeSettings({ imageProxyFallback: false }, DEFAULT_SETTINGS).imageProxyFallback).toBe(
+      false,
+    );
+    expect(
+      normalizeSettings(
+        { sevenTvProxyUrl: 'https://proxy.example/7tv/' },
+        DEFAULT_SETTINGS,
+      ).sevenTvProxyUrl,
+    ).toBe('https://proxy.example/7tv');
+    expect(
+      normalizeSettings({ sevenTvProxyUrl: 'http://proxy.example' }, DEFAULT_SETTINGS)
+        .sevenTvProxyUrl,
+    ).toBeUndefined();
   });
 });
 

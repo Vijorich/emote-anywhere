@@ -45,7 +45,7 @@ tag is created by release-please when the release pull request is merged):
 
 - **Name:** `Emote Anywhere`
 - **Summary (132 chars max):**
-  `7TV, BTTV and FFZ emotes in VK Messenger and other chats with a plugin. Site support updates without an extension release.`
+  `7TV, BTTV, FFZ and Twitch emotes in VK Messenger and other chats with a plugin. Site support updates without an extension release.`
 - **Category:** Social & Communication
 - **Icons:** auto-filled from the manifest; verify 128×128 shows correctly.
 - **Screenshots:** upload all four from `store/screenshots/` (1280×800 PNG).
@@ -59,7 +59,7 @@ Answer the data-usage questions to match reality: this extension collects
 nothing:
 
 1. **Single purpose description:**
-   `Render 7TV, BTTV and FFZ emotes in chat pages the user enables via plugins.`
+   `Render 7TV, BTTV, FFZ and Twitch emotes in chat pages the user enables via plugins.`
 2. **Do you sell or transfer data to third parties?** **No.**
 3. **Remote code:** confirm the extension does **not** use remote hosted code
    (the plugin registry is JSON data, validated and never executed).
@@ -78,8 +78,11 @@ Use the *Permission justifications* section below. The two that need prose:
 - `scripting` + optional `*://*/*` host access: site support comes from a
   data-only plugin registry; host access is requested per enabled plugin from
   a user click, and only for that plugin's origins.
-- CDN host permissions: background image proxy for chats whose CSP blocks
-  third-party emote images.
+- CDN host permissions (`cdn.7tv.app`, `cdn.betterttv.net`,
+  `cdn.frankerfacez.com`, `static-cdn.jtvnw.net`, `wsrv.nl`): background image
+  proxy for chats whose CSP blocks third-party emote images; `wsrv.nl` is used
+  only after a direct CDN failure. Custom image hosts are optional origins
+  requested when the user adds a set.
 
 ### Submit and what to expect
 
@@ -134,7 +137,7 @@ Edge reviews usually complete within a few business days.
 
 - **Name:** `Emote Anywhere`
 - **Summary (250 chars max):**
-  `7TV, BTTV and FFZ emotes in VK Messenger and other chats with a plugin. Site support updates without an extension release.`
+  `7TV, BTTV, FFZ and Twitch emotes in VK Messenger and other chats with a plugin. Site support updates without an extension release.`
 - **Category:** Chat & IM (under Social Networking)
 - **Support email / site:** your address /
    `https://github.com/Vijorich/emote-anywhere/issues`
@@ -178,8 +181,8 @@ no analytics). The disclosure must match the privacy policy.
 
 **Detailed description:**
 
-> Bring 7TV, BTTV and FrankerFaceZ emotes to VK Messenger and other chats with
-> a plugin.
+> Bring 7TV, BTTV, FrankerFaceZ and Twitch emotes to VK Messenger and other
+> chats with a plugin.
 >
 > Emote Anywhere renders the emote sets you already use directly in the page.
 > Open the built-in picker to search a set and insert an emote, add sets per
@@ -188,7 +191,8 @@ no analytics). The disclosure must match the privacy policy.
 > Site support comes from plugins, not extension updates. VK Messenger is
 > supported today; more chats can be added through the public registry.
 >
-> • 7TV, BTTV and FFZ global emotes
+> • 7TV, BTTV, FFZ and Twitch global emotes
+> • Persistent image cache and blocked-CDN fallbacks
 > • Global and chat sets
 > • Searchable emote picker with keyboard navigation
 > • Adjustable emote size
@@ -203,16 +207,18 @@ no analytics). The disclosure must match the privacy policy.
 
 ## Permission justifications (paste-ready)
 
-- **`storage`**: save settings, enabled plugins, chat sets and the emote
-  cache locally on the device. Never synced, never transmitted.
+- **`storage`**: save settings, enabled plugins, chat sets, the provider cache
+  and a page-origin IndexedDB image/registration cache locally on the device.
+  Never synced, never transmitted.
 - **`scripting`**: register the content script only on hosts whose plugin the
   user explicitly enabled.
 - **`activeTab`**: read the current tab URL so the popup can show the chat's
   status. No browsing history is stored.
-- **Host access to `cdn.7tv.app`, `cdn.betterttv.net`,
-  `cdn.frankerfacez.com`**: background image proxy for chat sites whose
-  Content Security Policy blocks third-party images (e.g. VK). Images are
+- **Host access to `cdn.7tv.app`, `cdn.betterttv.net`, `cdn.frankerfacez.com`,
+  `static-cdn.jtvnw.net`, `wsrv.nl`**: background image proxy for chat sites
+  whose Content Security Policy blocks third-party images (e.g. VK). Images are
   fetched by the background, converted to `data:` URLs and rendered locally.
+  `wsrv.nl` is used only when a direct CDN request fails.
 - **Optional host access (`*://*/*`)**: site support is driven by a public
   plugin registry. When the user enables a plugin for a chat site, the
   extension requests that plugin's specific origins from a user click, never
@@ -232,7 +238,11 @@ no analytics). The disclosure must match the privacy policy.
 - Optional host permissions are requested from user gestures on the Sources
   screen, narrowed to the plugin's origins; the background re-verifies grants
   before enabling anything.
-- No telemetry, analytics, accounts or backend. Network requests go to the
-  7TV/BTTV/FFZ APIs and CDNs and the registry host only.
+- Provider fallbacks are data-only: public metadata mirrors and project snapshots
+  are parsed with the same allow-list as live provider responses. They cannot
+  execute code.
+- No telemetry, analytics, accounts or project backend. Network requests go to
+  7TV/BTTV/FFZ/Twitch APIs and CDNs, the registry/snapshot host, configured
+  provider mirrors, and `wsrv.nl` only when image fallback is enabled.
 - Store screenshots are generated from a UI preview with mock data; no real
   chat content is shown.

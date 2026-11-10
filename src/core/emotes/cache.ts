@@ -1,5 +1,5 @@
 import { browser } from 'wxt/browser';
-import { CACHE_KEY, MAX_CACHE_BYTES } from '../config';
+import { CACHE_KEY, MAX_CACHE_BYTES, STALE_MAX_AGE_MS } from '../config';
 
 interface CacheEntry<T> {
   fetchedAt: number;
@@ -9,6 +9,14 @@ interface CacheEntry<T> {
   version?: number;
   /** Serialized size, stored so eviction does not re-stringify every entry. */
   bytes?: number;
+}
+
+export interface CachedOptions {
+  /**
+   * Return an expired entry immediately and refresh it in the background.
+   * Provider failures then never delay the first render.
+   */
+  staleWhileRevalidate?: boolean;
 }
 
 const CACHE_VERSION = 2;
@@ -38,11 +46,12 @@ function measure(entry: Omit<CacheEntry<unknown>, 'bytes'>): number {
   return new TextEncoder().encode(JSON.stringify(value)).byteLength;
 }
 
-function removeEntry(cache: CacheMap, key: string): void {
+function removeEntry(cache: CacheMap, key: string): boolean {
   const entry = cache[key];
-  if (!entry) return;
+  if (!entry) return false;
   cacheBytes -= entry.bytes ?? measure(entry);
   delete cache[key];
+  return true;
 }
 
 function evict(cache: CacheMap, keep?: string): boolean {
@@ -113,23 +122,28 @@ function persist(): void {
   });
 }
 
-function pruneExpired(cache: CacheMap, now: number, keep: string): boolean {
+/**
+ * Drop only entries that are too old to be useful. TTL is freshness, not
+ * deletion: expired entries are the offline / stale-while-revalidate fallback.
+ */
+function pruneAncient(cache: CacheMap, now: number, keep?: string): boolean {
   let changed = false;
   for (const [key, entry] of Object.entries(cache)) {
-    if (key !== keep && entry.ttlMs !== undefined && now - entry.fetchedAt >= entry.ttlMs) {
-      removeEntry(cache, key);
-      changed = true;
-    }
+    if (key === keep) continue;
+    if (now - entry.fetchedAt <= STALE_MAX_AGE_MS) continue;
+    removeEntry(cache, key);
+    changed = true;
   }
   return changed;
 }
 
 function store<T>(cache: CacheMap, key: string, data: T, ttlMs: number): boolean {
-  const pruned = pruneExpired(cache, Date.now(), key);
+  const now = Date.now();
+  const pruned = pruneAncient(cache, now);
   const hadEntry = cache[key] !== undefined;
   removeEntry(cache, key);
 
-  const entry: CacheEntry<T> = { fetchedAt: Date.now(), data, ttlMs, version: CACHE_VERSION };
+  const entry: CacheEntry<T> = { fetchedAt: now, data, ttlMs, version: CACHE_VERSION };
   const bytes = measure(entry);
   if (bytes > MAX_CACHE_BYTES) return pruned || hadEntry;
   entry.bytes = bytes;
@@ -140,20 +154,18 @@ function store<T>(cache: CacheMap, key: string, data: T, ttlMs: number): boolean
   return true;
 }
 
-export async function cached<T>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<T> {
-  const requestGeneration = generation;
-  const cache = await loadCache();
-  const current = requestGeneration === generation;
-  const entry = current ? (cache[key] as CacheEntry<T> | undefined) : undefined;
-  const now = Date.now();
-  if (current && pruneExpired(cache, now, key)) persist();
+function touch(cache: CacheMap, key: string, entry: CacheEntry<unknown>): void {
+  delete cache[key];
+  cache[key] = entry;
+}
 
-  if (entry && now - entry.fetchedAt < ttlMs) {
-    delete cache[key];
-    cache[key] = entry;
-    return entry.data;
-  }
-
+function startRequest<T>(
+  cache: CacheMap,
+  key: string,
+  ttlMs: number,
+  loader: () => Promise<T>,
+  requestGeneration = generation,
+): Promise<T> {
   const existing = inflight.get(key);
   if (existing && existing.generation === generation) return existing.promise as Promise<T>;
 
@@ -164,9 +176,6 @@ export async function cached<T>(key: string, ttlMs: number, loader: () => Promis
         if (store(cache, key, data, ttlMs)) persist();
       }
       return data;
-    } catch (error) {
-      if (entry) return entry.data;
-      throw error;
     } finally {
       if (inflight.get(key)?.promise === request) inflight.delete(key);
     }
@@ -174,6 +183,47 @@ export async function cached<T>(key: string, ttlMs: number, loader: () => Promis
 
   inflight.set(key, { generation: requestGeneration, promise: request });
   return request;
+}
+
+export async function cached<T>(
+  key: string,
+  ttlMs: number,
+  loader: () => Promise<T>,
+  options: CachedOptions = {},
+): Promise<T> {
+  const requestGeneration = generation;
+  const cache = await loadCache();
+  const current = requestGeneration === generation;
+  let entry = current ? (cache[key] as CacheEntry<T> | undefined) : undefined;
+  const now = Date.now();
+
+  if (entry && now - entry.fetchedAt > STALE_MAX_AGE_MS) {
+    removeEntry(cache, key);
+    persist();
+    entry = undefined;
+  }
+
+  if (entry && now - entry.fetchedAt < ttlMs) {
+    touch(cache, key, entry);
+    return entry.data;
+  }
+
+  if (entry && options.staleWhileRevalidate) {
+    touch(cache, key, entry);
+    void startRequest(cache, key, ttlMs, loader, requestGeneration).catch(() => undefined);
+    return entry.data;
+  }
+
+  try {
+    return await startRequest(cache, key, ttlMs, loader, requestGeneration);
+  } catch (error) {
+    // A failed refresh must keep the last known good value available.
+    if (entry) {
+      touch(cache, key, entry);
+      return entry.data;
+    }
+    throw error;
+  }
 }
 
 export function clearEmoteCache(): Promise<void> {

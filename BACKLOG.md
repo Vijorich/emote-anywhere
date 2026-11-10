@@ -36,3 +36,10 @@ zips from the new GitHub release.
 - A site with a strict `img-src` CSP can block emote images. VK is handled with
   `proxyImages` (background fetch → `data:` URL); other strict sites need the
   same flag in their plugin.
+- Public mirrors only expose global 7TV/Twitch metadata and Twitch channels.
+  Arbitrary 7TV set IDs in a blocked network require a self-hosted 7TV proxy.
+- The project snapshots are refreshed by a scheduled GitHub Action. The default
+  7TV set snapshot exists only after a runner can reach 7TV at least once; until
+  then the set layer falls back to global 7TV emotes.
+- `wsrv.nl` is a public fallback. If it is blocked too, only a self-hosted image
+  proxy or a working CDN path can load the image.

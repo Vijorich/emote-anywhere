@@ -11,5 +11,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   emoteScale: DEFAULT_EMOTE_SCALE,
   autoChannel: true,
   pickerEnabled: true,
-  providers: { sevenTv: true, bttv: true, ffz: true },
+  imageProxyFallback: true,
+  providers: { sevenTv: true, bttv: true, ffz: true, twitch: true },
 };

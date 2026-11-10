@@ -253,7 +253,32 @@ describe('RPC boundaries', () => {
     expect(resolver.resolveEmotes).toHaveBeenCalledTimes(2);
   });
 
-  it('does not cache registrations with provider errors', async () => {
+  it('returns an unchanged registration without resending the emote array', async () => {
+    state.getState.mockResolvedValue(stateWithChat());
+    resolver.resolveEmotes.mockResolvedValue({
+      emotes: [{ code: 'peepoSad', url: 'https://cdn.example/e.png', flags: 0, provider: '7tv' }],
+      sources: ['7tv:global'],
+      errors: [],
+    });
+    const request = {
+      type: 'chat/register' as const,
+      pluginKey: 'r:chat',
+      channelKey: 'chan',
+    };
+    const first = (await handleRpc(request, null)) as { revision: string; emotes: unknown[] };
+    const second = (await handleRpc(
+      { ...request, knownRevision: first.revision },
+      null,
+    )) as { unchanged?: boolean; emotes: unknown[] };
+
+    expect(first.revision).toBeTruthy();
+    expect(second.unchanged).toBe(true);
+    expect(second.emotes).toEqual([]);
+  });
+
+  it('caches partial registrations briefly after provider errors', async () => {
+    let now = 1_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
     state.getState.mockResolvedValue(stateWithChat());
     resolver.resolveEmotes.mockResolvedValue({
       emotes: [],
@@ -268,8 +293,12 @@ describe('RPC boundaries', () => {
 
     await handleRpc(request, null);
     await handleRpc(request, null);
+    expect(resolver.resolveEmotes).toHaveBeenCalledTimes(1);
 
+    now += 61_000;
+    await handleRpc(request, null);
     expect(resolver.resolveEmotes).toHaveBeenCalledTimes(2);
+    vi.restoreAllMocks();
   });
 
   it('rejects an unknown RPC request', async () => {

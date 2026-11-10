@@ -103,6 +103,8 @@ export interface ProviderSettings {
   sevenTv: boolean;
   bttv: boolean;
   ffz: boolean;
+  /** Twitch global emotes, loaded from a mirror or a published snapshot. */
+  twitch?: boolean;
 }
 
 export interface AppSettings {
@@ -111,6 +113,10 @@ export interface AppSettings {
   autoChannel: boolean;
   pickerEnabled: boolean;
   providers: ProviderSettings;
+  /** Use the public image fallback when a CDN cannot be reached directly. */
+  imageProxyFallback?: boolean;
+  /** Optional self-hosted 7TV API/CDN mirror. */
+  sevenTvProxyUrl?: string;
 }
 
 export interface AppState {
@@ -123,7 +129,7 @@ export interface AppState {
   customSets: CustomSet[];
 }
 
-export type EmoteProvider = '7tv' | 'bttv' | 'ffz' | 'custom';
+export type EmoteProvider = '7tv' | 'bttv' | 'ffz' | 'twitch' | 'custom';
 
 export interface Emote {
   code: string;
@@ -152,6 +158,10 @@ export interface ChatRegistration {
   sources: string[];
   errors: string[];
   binding: Binding | null;
+  /** Stable signature of the inputs that produced this registration. */
+  revision?: string;
+  /** Set when the content script already has this exact revision. */
+  unchanged?: boolean;
 }
 
 export interface SevenTvSetInfo {
@@ -171,7 +181,13 @@ export type RpcRequest =
   | { type: 'plugin/disable'; key: string }
   | { type: 'plugin/remove'; key: string }
   | { type: 'plugin/forUrl'; url: string }
-  | { type: 'chat/register'; pluginKey: string; channelKey: string; sevenTvId?: string }
+  | {
+      type: 'chat/register';
+      pluginKey: string;
+      channelKey: string;
+      sevenTvId?: string;
+      knownRevision?: string;
+    }
   | { type: 'binding/set'; pluginKey: string; channelKey: string; label: string; sets: string[] }
   | { type: 'binding/remove'; key: string }
   | { type: 'globalBinding/set'; sets: string[] }
@@ -180,7 +196,9 @@ export type RpcRequest =
   | { type: 'set/toggle'; id: string; enabled: boolean }
   | { type: 'settings/update'; patch: Partial<AppSettings> }
   | { type: 'sevenTv/lookupSet'; input: string }
-  | { type: 'image/fetch'; url: string }
+  | { type: 'image/fetch'; url: string; refresh?: boolean }
+  | { type: 'diagnostics/get' }
+  | { type: 'providers/retry' }
   | { type: 'frame/context'; context: ContentContext | null }
   | { type: 'frame/contexts'; tabId: number }
   | { type: 'cache/clear' };

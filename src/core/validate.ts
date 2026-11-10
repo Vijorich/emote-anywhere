@@ -485,10 +485,26 @@ export function normalizeCustomSet(value: unknown): CustomSet | null {
   };
 }
 
+function normalizeProxyUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.length > 500) return undefined;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return undefined;
+    if (parsed.search || parsed.hash) return undefined;
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    return undefined;
+  }
+}
+
 export function normalizeSettings(value: unknown, defaults: AppSettings): AppSettings {
   if (!isRecord(value)) return defaults;
   const providers = isRecord(value['providers']) ? value['providers'] : {};
   const scale = value['emoteScale'];
+  const proxyUrl = normalizeProxyUrl(value['sevenTvProxyUrl']);
   return {
     globalMode: value['globalMode'] === true,
     emoteScale:
@@ -497,10 +513,13 @@ export function normalizeSettings(value: unknown, defaults: AppSettings): AppSet
         : defaults.emoteScale,
     autoChannel: value['autoChannel'] !== false,
     pickerEnabled: value['pickerEnabled'] !== false,
+    imageProxyFallback: value['imageProxyFallback'] !== false,
+    ...(proxyUrl ? { sevenTvProxyUrl: proxyUrl } : {}),
     providers: {
       sevenTv: providers['sevenTv'] !== false,
       bttv: providers['bttv'] !== false,
       ffz: providers['ffz'] !== false,
+      twitch: providers['twitch'] !== false,
     },
   };
 }

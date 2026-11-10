@@ -6,16 +6,18 @@ export default defineConfig({
   manifest: ({ browser }) => ({
     name: 'Emote Anywhere',
     description:
-      '7TV, BTTV and FFZ emotes in VK Messenger and other chats with a plugin. Add site support without an extension update.',
+      '7TV, BTTV, FFZ and Twitch emotes in VK Messenger and other chats with a plugin. Add site support without an extension update.',
     homepage_url: 'https://github.com/Vijorich/emote-anywhere',
     permissions: ['storage', 'scripting', 'activeTab'],
     ...(browser === 'firefox' ? {} : { minimum_chrome_version: '123' }),
     // Background image proxy. BTTV's CDN does not send CORS headers; the other
-    // two are listed so the proxy keeps working if their headers change.
+    // hosts are listed so the proxy keeps working if their headers change.
     host_permissions: [
       'https://cdn.7tv.app/*',
       'https://cdn.betterttv.net/*',
       'https://cdn.frankerfacez.com/*',
+      'https://static-cdn.jtvnw.net/*',
+      'https://wsrv.nl/*',
     ],
     optional_host_permissions: ['*://*/*'],
     action: { default_title: 'Emote Anywhere' },

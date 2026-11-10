@@ -131,9 +131,21 @@ function createImage(
   );
 
   if (proxyImages) {
-    void proxiedImage(emote.url).then((dataUrl) => {
-      if (dataUrl) setImageSource(img, fallback, dataUrl);
-    });
+    const load = (refresh = false): void => {
+      void proxiedImage(emote.url, { refresh }).then((dataUrl) => {
+        if (dataUrl) setImageSource(img, fallback, dataUrl);
+      });
+    };
+    load();
+    img.addEventListener(
+      'error',
+      () => {
+        if (img.dataset.eaRetried === '1') return;
+        img.dataset.eaRetried = '1';
+        load(true);
+      },
+      { once: true },
+    );
   } else {
     img.src = emote.url;
     if (img.complete && img.naturalWidth > 0) reveal(img, fallback);

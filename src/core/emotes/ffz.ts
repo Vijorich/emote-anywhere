@@ -1,4 +1,4 @@
-import { GLOBAL_TTL_MS } from '../config';
+import { GLOBAL_TTL_MS, SET_TTL_MS } from '../config';
 import type { Emote } from '../types';
 import { cached } from './cache';
 import { fetchProviderJson } from './http';
@@ -15,6 +15,10 @@ interface FfzSet {
 
 interface FfzGlobal {
   default_sets?: number[];
+  sets?: Record<string, FfzSet>;
+}
+
+interface FfzRoom {
   sets?: Record<string, FfzSet>;
 }
 
@@ -50,10 +54,32 @@ function normalize(sets: FfzSet[]): Emote[] {
 }
 
 export async function fetchFfzGlobal(): Promise<Emote[]> {
-  return cached('ffz:global', GLOBAL_TTL_MS, async () => {
-    const data = await fetchProviderJson<FfzGlobal>('https://api.frankerfacez.com/v1/set/global');
-    const ids = data.default_sets ?? [];
-    const sets = ids.map((id) => data.sets?.[String(id)]).filter((set): set is FfzSet => !!set);
-    return normalize(sets);
-  });
+  return cached(
+    'ffz:global',
+    GLOBAL_TTL_MS,
+    async () => {
+      const data = await fetchProviderJson<FfzGlobal>(
+        'https://api.frankerfacez.com/v1/set/global',
+      );
+      const ids = data.default_sets ?? [];
+      const sets = ids.map((id) => data.sets?.[String(id)]).filter((set): set is FfzSet => !!set);
+      return normalize(sets);
+    },
+    { staleWhileRevalidate: true },
+  );
+}
+
+export async function fetchFfzChannel(id: string): Promise<Emote[]> {
+  if (!/^\d{1,32}$/.test(id)) throw new Error('Invalid Twitch user id');
+  return cached(
+    `ffz:channel:${id}`,
+    SET_TTL_MS,
+    async () => {
+      const data = await fetchProviderJson<FfzRoom>(
+        `https://api.frankerfacez.com/v1/room/id/${encodeURIComponent(id)}`,
+      );
+      return normalize(Object.values(data.sets ?? {}));
+    },
+    { staleWhileRevalidate: true },
+  );
 }

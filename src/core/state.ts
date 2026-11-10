@@ -7,7 +7,7 @@ import {
   STATE_KEY,
 } from './config';
 import { DEFAULT_GLOBAL_SET_IDS, DEFAULT_SETTINGS } from './defaults';
-import { normalizeState } from './validate';
+import { normalizeSettings, normalizeState } from './validate';
 import type { AppSettings, AppState } from './types';
 
 export function createDefaultState(): AppState {
@@ -96,11 +96,14 @@ export function mutateState<T>(
 export async function updateSettings(patch: Partial<AppSettings>): Promise<AppState> {
   return (
     await mutateState((state) => {
-      state.settings = {
-        ...state.settings,
-        ...patch,
-        providers: { ...state.settings.providers, ...(patch.providers ?? {}) },
-      };
+      state.settings = normalizeSettings(
+        {
+          ...state.settings,
+          ...patch,
+          providers: { ...state.settings.providers, ...(patch.providers ?? {}) },
+        },
+        DEFAULT_SETTINGS,
+      );
     })
   ).state;
 }

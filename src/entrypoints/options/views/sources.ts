@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser';
 import { rpc } from '../../../core/rpc';
+import { ALLOWED_IMAGE_HOSTS } from '../../../core/emotes/image-urls';
 import type {
   AppState,
   CustomEmote,
@@ -112,6 +113,15 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
             ctx.updateSettings({ providers: { ...settings.providers, ffz: checked } });
           },
         }),
+        switchRow({
+          title: 'Twitch',
+          description: 'Global Twitch emotes from a cached mirror or snapshot.',
+          focusKey: 'provider-twitch',
+          checked: settings.providers.twitch !== false,
+          onChange: (checked) => {
+            ctx.updateSettings({ providers: { ...settings.providers, twitch: checked } });
+          },
+        }),
       ),
     ),
     h(
@@ -192,15 +202,38 @@ function addCustomSetForm(
                 fail('Enter a set name.', name);
                 return;
               }
-              void rpc('set/add', { name: finalName, emotes: emotes as CustomEmote[] })
-                .then(() => {
-                  name.value = '';
-                  json.value = '';
-                  return ctx.refresh();
-                })
-                .catch((error: unknown) => {
-                  fail(error instanceof Error ? error.message : String(error), json);
-                });
+              void (async () => {
+                const customHosts = Array.from(
+                  new Set(
+                    (emotes as CustomEmote[])
+                      .map((emote) => {
+                        try {
+                          const parsed = new URL(emote.url);
+                          return parsed.protocol === 'https:' ? parsed.hostname : '';
+                        } catch {
+                          return '';
+                        }
+                      })
+                      .filter((host) => host && !ALLOWED_IMAGE_HOSTS.has(host)),
+                  ),
+                );
+                if (customHosts.length) {
+                  try {
+                    await browser.permissions.request({
+                      origins: customHosts.map((host) => `https://${host}/*`),
+                    });
+                  } catch {
+                    // The set can still be added; VK will show fallback text
+                    // until the host permission is granted.
+                  }
+                }
+                await rpc('set/add', { name: finalName, emotes: emotes as CustomEmote[] });
+                name.value = '';
+                json.value = '';
+                await ctx.refresh();
+              })().catch((error: unknown) => {
+                fail(error instanceof Error ? error.message : String(error), json);
+              });
             } catch (error) {
               fail(error instanceof Error ? error.message : String(error), json);
             }

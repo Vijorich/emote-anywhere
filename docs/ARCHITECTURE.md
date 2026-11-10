@@ -38,11 +38,17 @@ A plugin describes **where** a chat is and **what** to read. It cannot run code.
   are deleted after an authoritative fresh fetch. A refresh that returns zero plugins
   is rejected instead of silently deleting every installed plugin.
 - Resolves emotes for a `(plugin, channel)` pair and caches normalized sets for one
-  hour (global sets for six hours). Cache lives under a separate storage key, so
-  cache writes do not re-render the options page. Cache entries have a 4 MiB byte
-  budget plus a 200-entry cap; quota failures are logged and fall back to the
+  hour (global sets for six hours). Expired entries stay available for 30 days, are
+  served immediately with stale-while-revalidate, and are refreshed in the
+  background. A failed provider never blocks other layers; a per-host circuit
+  breaker skips a dead host for five minutes. Cache lives under a separate storage
+  key, so cache writes do not re-render the options page. Cache entries have a 4 MiB
+  byte budget plus a 200-entry cap; quota failures are logged and fall back to the
   in-memory cache. State has a 5 MiB guard and custom sets have count/total-emote
   limits.
+- 7TV global and Twitch global have mirror and project-snapshot fallbacks. A
+  user-configured HTTPS 7TV proxy covers arbitrary 7TV set IDs. Providers are
+  isolated by the same timeout, retry and circuit-breaker policy.
 - Remembers content-script contexts per tab/frame in `storage.session` plus a memory
   cache, so the popup can bind chats that live inside an iframe and survives a
   service-worker restart. Entries expire after ten minutes and are dropped when a
@@ -99,6 +105,12 @@ A plugin describes **where** a chat is and **what** to read. It cannot run code.
   `execCommand('insertText')` with a Range fallback. No image upload, ever.
 - Composer selectors come from the plugin. The picker re-finds a missing composer on
   SPA navigation and leaves a connected composer undisturbed.
+- Proxied images are cached in two layers: an in-memory LRU in each frame and a
+  page-origin IndexedDB cache (24 MiB / 400 entries). The IndexedDB cache is shared
+  by same-origin frames and survives reloads and browser restarts. Image RPCs are
+  batched by a small queue with six concurrent requests.
+- Registration payloads carry a revision hash. A page that already has the same
+  revision receives a small `unchanged` response instead of up to 30k emotes.
 
 ## Emote priority
 
@@ -107,7 +119,13 @@ A plugin describes **where** a chat is and **what** to read. It cannot run code.
 3. Auto: 7TV channel connected to the site (`chat.sevenTv`), when no chat set
    exists.
 4. Enabled custom sets.
-5. Global 7TV, BTTV, FFZ.
+5. Global 7TV, BTTV, FFZ and Twitch.
+
+Fallback order for 7TV metadata is official API → public mirror → project
+snapshot → a degraded mirror without zero-width flags. Twitch uses a public
+mirror or project snapshot because its official API requires OAuth. A
+self-hosted 7TV proxy, when configured, replaces the official API and CDN for
+7TV requests.
 
 The first provider that defines a code wins. Global providers are fetched in
 parallel; merging is ordered, so priority is deterministic.
@@ -152,11 +170,17 @@ receive it on upgrade. An explicitly empty list stays empty.
   background. Auto-channel IDs are validated against platform formats before any
   7TV lookup, rejecting values outside those formats.
 - Chat host permissions are optional and requested per plugin. Emote API calls use
-  CORS from the background; only the CDN image proxy uses static host permissions.
+  CORS from the background; the CDN/image-fallback proxy uses static host
+  permissions, and custom image hosts are requested per set.
   Disabling a plugin unregisters its script but does not revoke an origin grant;
   revoking it in the browser triggers a resync and teardown.
-- Custom emote image URLs must be `https:` or `data:image/`. A page's own CSP can
-  still block them; the extension does not proxy custom set images.
+- Custom emote image URLs must be `https:` or `data:image/`. `data:image` URLs
+  bypass the proxy. For other custom hosts the options page requests an optional
+  origin permission at set creation; the background proxy accepts only hosts that
+  exist in an enabled custom set **and** have that permission. There is no open
+  image proxy.
+- `wsrv.nl` is used only after a direct CDN failure and only for a URL that already
+  passed the CDN allowlist. The request contains the image URL, never chat text.
 - Regex rules run on URLs, not message text. Validation rejects patterns whose
   quantified groups contain a quantifier (star height ≥ 2, the
   catastrophic-backtracking shape), and matching runs against the first 500

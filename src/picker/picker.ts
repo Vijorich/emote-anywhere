@@ -1005,8 +1005,12 @@ export class EmotePicker {
     probe.src = large;
   }
 
-  private loadProxied(img: HTMLImageElement, source: string): void {
-    void proxiedImage(source).then((dataUrl) => {
+  private loadProxied(img: HTMLImageElement, source: string, refresh = false): void {
+    if (img.dataset.eaErrorBound !== '1') {
+      img.dataset.eaErrorBound = '1';
+      img.addEventListener('error', () => this.retryProxied(img, source), { once: true });
+    }
+    void proxiedImage(source, { refresh }).then((dataUrl) => {
       if (!img.isConnected) return;
       const cell = img.closest<HTMLElement>('.cell');
       if (dataUrl) {
@@ -1016,6 +1020,12 @@ export class EmotePicker {
       }
       cell?.classList.add('failed');
     });
+  }
+
+  private retryProxied(img: HTMLImageElement, source: string): void {
+    if (img.dataset.eaRetried === '1') return;
+    img.dataset.eaRetried = '1';
+    this.loadProxied(img, source, true);
   }
 
   private renderGrid(): void {

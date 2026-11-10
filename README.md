@@ -4,10 +4,10 @@
 [![Release](https://github.com/Vijorich/emote-anywhere/actions/workflows/release.yml/badge.svg)](https://github.com/Vijorich/emote-anywhere/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-7TV, BetterTTV (BTTV) and FrankerFaceZ (FFZ) emotes in VK Messenger and other
-chats, with a searchable emote picker, per-chat and global emote sets, and
-site support that updates from a plugin registry **without a new extension
-release**.
+7TV, BetterTTV (BTTV), FrankerFaceZ (FFZ) and Twitch emotes in VK Messenger
+and other chats, with a searchable emote picker, per-chat and global emote
+sets, persistent offline image caching, and site support that updates from a
+plugin registry **without a new extension release**.
 
 ![Emote Anywhere sources settings](store/screenshots/01-sources.png)
 
@@ -31,7 +31,12 @@ any site until you enable a plugin for it.
 
 ## Features
 
-- **7TV, BTTV and FFZ global emotes** everywhere a plugin is enabled.
+- **7TV, BTTV, FFZ and Twitch global emotes** everywhere a plugin is enabled.
+- **Persistent image cache**: proxied images survive a page reload, a service-worker
+  restart and a browser restart. The cache is stored in the site's IndexedDB.
+- **Blocked-CDN fallbacks**: global 7TV and Twitch metadata can come from public
+  mirrors, project snapshots or a self-hosted 7TV proxy; images can fall back to
+  `wsrv.nl`. See [docs/7TV_PROXY.md](docs/7TV_PROXY.md).
 - **Emote picker**: search a set, navigate by keyboard, insert into the chat
   composer. Shadow-DOM UI, so page styles and strict CSPs do not break it.
 - **Chat sets and global sets**: attach different 7TV sets per conversation,
@@ -42,8 +47,8 @@ any site until you enable a plugin for it.
 - **Plugin-driven site support**: selectors and URL patterns live in a JSON
   registry, so a site redesign is fixed by a registry update, not an extension
   release.
-- **No account, no telemetry, no backend.** Chat text never leaves the page.
-  See [PRIVACY.md](PRIVACY.md).
+- **No account, no telemetry, no project backend.** Chat text never leaves the
+  page. See [PRIVACY.md](PRIVACY.md).
 
 ## How it works
 
@@ -55,8 +60,8 @@ Three independent layers ([full architecture](docs/ARCHITECTURE.md)):
   derive a channel key, where the composer is. No JavaScript, no extension
   APIs; every field is validated against an allow-list. This is what makes
   remote site support compatible with store rules against remote code.
-- **Providers** (`src/core/emotes`): 7TV, BTTV and FFZ clients plus custom
-  sets.
+- **Providers** (`src/core/emotes`): 7TV, BTTV, FFZ and Twitch clients, public
+  mirror and snapshot fallbacks, plus custom sets.
 
 The background worker owns all state and emote resolution; content scripts ask
 it for the plugin matching the current URL and the resolved emote set.
@@ -69,7 +74,7 @@ When several sources define the same code, the first source wins:
 2. global sets;
 3. the site's own 7TV channel (when no chat set exists);
 4. enabled custom sets;
-5. 7TV, BTTV and FFZ global providers.
+5. 7TV, BTTV, FFZ and Twitch global providers.
 
 Manage global sets in **Sets**, or add a chat set from the popup while the
 chat is open. The default global set is
@@ -101,19 +106,21 @@ Anyone can add one: it is JSON, not code.
 
 ## Privacy & permissions
 
-Emote lookups go directly to 7TV/BTTV/FFZ. The extension sends no telemetry
-and has no backend; chat text never leaves the page. Full policy:
+Emote lookups go to 7TV, BTTV, FFZ and Twitch, with public mirror/snapshot
+fallbacks when a provider is blocked. The extension sends no telemetry and has
+no backend; chat text never leaves the page. Full policy:
 [PRIVACY.md](PRIVACY.md).
 
-- `storage`: settings, plugins, chat sets, cache (local only, never synced).
+- `storage`: settings, plugins, chat sets, provider cache (local only, never synced).
 - `scripting`: register the content script only for enabled plugin hosts.
 - `activeTab`: read the current tab URL from the popup.
-- Host access to `cdn.7tv.app`, `cdn.betterttv.net`, `cdn.frankerfacez.com`:
-  background image proxy for sites whose CSP blocks third-party images (BTTV's
-  CDN sends no CORS headers).
+- Host access to `cdn.7tv.app`, `cdn.betterttv.net`, `cdn.frankerfacez.com`,
+  `static-cdn.jtvnw.net` and `wsrv.nl`: background image proxy and fallback for
+  sites whose CSP blocks third-party images (BTTV's CDN sends no CORS headers).
 - Optional host access (`*://*/*`) is declared so registry plugins can target
   any chat site, but the extension requests only the origins of plugins you
-  enable, from a click. The extension does not read chat messages until you
+  enable, from a click. Custom image hosts get their own optional origin grant
+  when you add a set. The extension does not read chat messages until you
   enable a plugin. Disabling a plugin stops its content script but does not
   revoke access already granted; revoke it in the browser's extension
   site-access settings if desired.
@@ -132,6 +139,7 @@ pnpm build          # production build
 pnpm preview        # standalone UI preview at http://localhost:5199 (no browser needed)
 pnpm dev:page       # mock chat page on :8788
 pnpm registry       # local default registry on :8787
+pnpm snapshot       # refresh registry/emotes snapshots
 pnpm release:check  # release readiness gate
 ```
 

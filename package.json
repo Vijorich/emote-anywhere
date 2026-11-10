@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@12.15.0",
-  "description": "7TV, BTTV and FFZ emotes in VK Messenger and other chats, with declarative site plugins.",
+  "description": "7TV, BTTV, FFZ and Twitch emotes in VK Messenger and other chats, with declarative site plugins.",
   "author": "Viktor Antonov",
   "homepage": "https://github.com/Vijorich/emote-anywhere",
   "repository": {
@@ -21,6 +21,7 @@
     "7tv",
     "bttv",
     "frankerfacez",
+    "twitch",
     "webextension"
   ],
   "engines": {
@@ -36,6 +37,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "registry": "node scripts/serve-registry.mjs",
+    "snapshot": "node scripts/snapshot-emotes.mjs",
     "dev:page": "node scripts/serve-dev.mjs",
     "release:check": "node scripts/check-release.mjs",
     "commits:check": "node scripts/check-commits.mjs",
@@ -46,6 +48,7 @@
   "devDependencies": {
     "@types/node": "^26.6.5",
     "addons-linter": "^10.15.0",
+    "fake-indexeddb": "^6.2.8",
     "jsdom": "^30.1.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",

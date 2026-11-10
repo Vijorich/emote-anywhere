@@ -13,6 +13,12 @@ import { urlMatchesAny } from '../core/url-match';
 import type { ChannelRule, CustomSet } from '../core/types';
 import { ChatEngine } from '../engine/engine';
 import { queryAllFirst } from '../engine/dom';
+import { clearContentImageCache } from '../engine/image-fallback';
+import {
+  clearStoredRegistrations,
+  getStoredRegistration,
+  putStoredRegistration,
+} from '../engine/registration-store';
 import { EmotePicker } from '../picker/picker';
 
 const CHAT_SURFACE_POLL_MS = 500;
@@ -213,12 +219,15 @@ function start(): void {
     if (current !== generation) return;
 
     const channelKey = safeChannelKey(channelValue);
+    const registrationKey = `${match.pluginKey}|${channelKey}`;
+    const local = await getStoredRegistration(registrationKey);
     let registration: ChatRegistration;
     try {
       registration = await rpc<ChatRegistration>('chat/register', {
         pluginKey: match.pluginKey,
         channelKey,
         sevenTvId,
+        ...(local?.revision ? { knownRevision: local.revision } : {}),
       });
     } catch (error) {
       console.warn('[emote-anywhere] emote registration failed', error);
@@ -227,6 +236,20 @@ function start(): void {
       return;
     }
     if (current !== generation) return;
+
+    if (registration.unchanged && local) {
+      registration = {
+        ...local,
+        sources: registration.sources,
+        errors: registration.errors,
+        binding: registration.binding,
+      };
+    } else {
+      void putStoredRegistration(registrationKey, {
+        ...registration,
+        unchanged: undefined,
+      });
+    }
 
     if (sevenTvPromise && !sevenTvId && !registration.binding) {
       void sevenTvPromise.then((id) => {
@@ -271,6 +294,12 @@ function start(): void {
     }
     if (type === 'ea/resync') {
       scheduleSync(0);
+      sendResponse(true);
+      return undefined;
+    }
+    if (type === 'ea/image-cache-clear') {
+      clearContentImageCache();
+      void clearStoredRegistrations();
       sendResponse(true);
       return undefined;
     }

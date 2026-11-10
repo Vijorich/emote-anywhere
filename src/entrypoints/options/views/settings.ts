@@ -75,6 +75,24 @@ export function settingsView(current: AppState, ctx: OptionsContext): HTMLElemen
     h(
       'section',
       { class: 'section' },
+      h('h2', { text: 'Images' }),
+      h(
+        'div',
+        { class: 'panel' },
+        switchRow({
+          title: 'Image fallback',
+          description:
+            'When an emote CDN is unreachable, load the image through wsrv.nl. Only the image URL is sent.',
+          focusKey: 'setting-imageProxyFallback',
+          checked: settings.imageProxyFallback !== false,
+          onChange: (checked) => ctx.updateSettings({ imageProxyFallback: checked }),
+        }),
+        proxyRow(settings.sevenTvProxyUrl, ctx),
+      ),
+    ),
+    h(
+      'section',
+      { class: 'section' },
       h('h2', { text: 'Cache' }),
       h(
         'div',
@@ -82,10 +100,55 @@ export function settingsView(current: AppState, ctx: OptionsContext): HTMLElemen
         h(
           'div',
           { class: 'form-actions' },
+          retryProvidersButton(ctx),
           clearCacheButton(ctx),
         ),
       ),
     ),
+  );
+}
+
+function proxyRow(current: string | undefined, ctx: OptionsContext): HTMLElement {
+  const input = h('input', {
+    class: 'input',
+    type: 'url',
+    placeholder: 'https://your-7tv-proxy.example',
+    value: current ?? '',
+    'aria-label': '7TV proxy URL',
+  });
+  const note = h('p', {
+    class: 'section-note',
+    text: 'Use a self-hosted HTTPS proxy when the 7TV API or CDN is blocked in your network.',
+  });
+  const save = h('button', {
+    class: 'btn',
+    type: 'button',
+    text: 'Save',
+    onclick: () => {
+      const value = input.value.trim();
+      if (value) {
+        try {
+          const parsed = new URL(value);
+          if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
+            note.textContent = 'Proxy URL must use HTTPS and contain no credentials.';
+            return;
+          }
+        } catch {
+          note.textContent = 'Enter a valid HTTPS proxy URL.';
+          return;
+        }
+      }
+      void rpc('settings/update', { patch: { sevenTvProxyUrl: value } })
+        .then(() => ctx.refresh())
+        .catch((error: unknown) => console.error(error));
+    },
+  });
+  return h(
+    'div',
+    { class: 'field' },
+    h('span', { text: '7TV proxy (optional)' }),
+    h('div', { class: 'field-row' }, input, save),
+    note,
   );
 }
 
@@ -137,6 +200,26 @@ function updatePreviewScale(preview: HTMLElement, scale: number): void {
     '--emote-height',
     `${(EMOTE_BASE_HEIGHT_EM * scale).toFixed(2)}em`,
   );
+}
+
+function retryProvidersButton(ctx: OptionsContext): HTMLButtonElement {
+  const button = h('button', {
+    class: 'btn',
+    type: 'button',
+    text: 'Retry providers',
+  });
+  button.addEventListener('click', () => {
+    void withBusy(button, 'Retrying…', async () => {
+      try {
+        await rpc('providers/retry');
+        clearSetLookupCache();
+        await ctx.refresh();
+      } catch (error) {
+        console.error(error);
+      }
+    });
+  });
+  return button;
 }
 
 function clearCacheButton(ctx: OptionsContext): HTMLButtonElement {

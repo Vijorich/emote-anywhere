@@ -117,7 +117,7 @@ describe('emote cache', () => {
     expect(snapshot['key-204'].data).toBe(204);
   });
 
-  it('prunes expired entries while retaining stale loader fallback', async () => {
+  it('keeps expired entries available for stale fallback', async () => {
     let now = 0;
     vi.spyOn(Date, 'now').mockImplementation(() => now);
     const { cached } = await import('../src/core/emotes/cache');
@@ -133,12 +133,39 @@ describe('emote cache', () => {
       throw new Error('offline');
     });
     expect(await cached('stale', 10, loader)).toBe('old');
+    expect(await cached('expired', 10, loader)).toBe('expired');
     await flush();
 
-    expect(storage.set).toHaveBeenCalledTimes(2);
-    const snapshot = storage.set.mock.calls[1]?.[0][KEY];
-    expect(Object.keys(snapshot)).toEqual(['stale']);
+    // Expiry is freshness, not deletion: both values remain in the cache.
+    const snapshot = storage.set.mock.calls[0]?.[0][KEY];
+    expect(Object.keys(snapshot).sort()).toEqual(['expired', 'stale']);
     expect(snapshot.stale.data).toBe('old');
+  });
+
+  it('serves stale data immediately while revalidating in the background', async () => {
+    let now = 0;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const { cached } = await import('../src/core/emotes/cache');
+    await cached('swr', 10, async () => 'old');
+    await flush();
+
+    now = 20;
+    let resolve!: (value: string) => void;
+    const loader = vi.fn(
+      () =>
+        new Promise<string>((res) => {
+          resolve = res;
+        }),
+    );
+    await expect(
+      cached('swr', 10, loader, { staleWhileRevalidate: true }),
+    ).resolves.toBe('old');
+    expect(loader).toHaveBeenCalledOnce();
+
+    resolve('new');
+    await flush();
+    now = 20;
+    await expect(cached('swr', 10, async () => 'wrong')).resolves.toBe('new');
   });
 
   it('does not cache an entry larger than the byte budget', async () => {

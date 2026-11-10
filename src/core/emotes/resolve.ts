@@ -1,4 +1,4 @@
-import { MAX_RESOLVED_EMOTES } from '../config';
+import { MAX_RESOLVED_EMOTES, PROVIDER_TIMEOUT_MS } from '../config';
 import type {
   AppSettings,
   Binding,
@@ -10,9 +10,10 @@ import type {
   SevenTvSpec,
 } from '../types';
 import { parseSevenTvSetId } from '../validate';
-import { fetchBttvGlobal } from './bttv';
-import { fetchFfzGlobal } from './ffz';
+import { fetchBttvChannel, fetchBttvGlobal } from './bttv';
+import { fetchFfzChannel, fetchFfzGlobal } from './ffz';
 import { fetchSevenTvGlobal, fetchSevenTvSet, fetchSevenTvUser } from './seven-tv';
+import { fetchTwitchGlobal } from './twitch';
 
 export interface ResolveOptions {
   binding: Binding | null;
@@ -28,21 +29,32 @@ interface Layer {
   load: () => Promise<Emote[]>;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Provider timed out')), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
+}
+
 /** Priority: per-chat sets, global sets, auto 7TV, custom sets, then global providers; first code wins. */
 export async function resolveEmotes(options: ResolveOptions): Promise<ResolvedEmotes> {
   const layers: Layer[] = [];
   const bindingSets = options.binding?.sets ?? [];
+  const proxyUrl = options.settings.sevenTvProxyUrl;
 
   for (const id of bindingSets) {
     layers.push({
       label: `7tv:set:${id}`,
-      load: async () => (await fetchSevenTvSet(id)).emotes,
+      load: async () => (await fetchSevenTvSet(id, { proxyUrl })).emotes,
     });
   }
   for (const id of options.globalBinding.sets) {
     layers.push({
       label: `7tv:global-set:${id}`,
-      load: async () => (await fetchSevenTvSet(id)).emotes,
+      load: async () => (await fetchSevenTvSet(id, { proxyUrl })).emotes,
     });
   }
 
@@ -51,8 +63,16 @@ export async function resolveEmotes(options: ResolveOptions): Promise<ResolvedEm
     const id = options.sevenTvId;
     layers.push({
       label: `7tv:${platform}:${id}`,
-      load: async () => (await fetchSevenTvUser(platform, id)).emotes,
+      load: async () => (await fetchSevenTvUser(platform, id, { proxyUrl })).emotes,
     });
+    if (platform === 'twitch') {
+      if (options.settings.providers.bttv) {
+        layers.push({ label: `bttv:channel:${id}`, load: () => fetchBttvChannel(id) });
+      }
+      if (options.settings.providers.ffz) {
+        layers.push({ label: `ffz:channel:${id}`, load: () => fetchFfzChannel(id) });
+      }
+    }
   }
 
   for (const set of options.customSets) {
@@ -72,7 +92,7 @@ export async function resolveEmotes(options: ResolveOptions): Promise<ResolvedEm
   if (options.settings.providers.sevenTv) {
     layers.push({
       label: '7tv:global',
-      load: async () => (await fetchSevenTvGlobal()).emotes,
+      load: async () => (await fetchSevenTvGlobal({ proxyUrl })).emotes,
     });
   }
   if (options.settings.providers.bttv) {
@@ -81,11 +101,17 @@ export async function resolveEmotes(options: ResolveOptions): Promise<ResolvedEm
   if (options.settings.providers.ffz) {
     layers.push({ label: 'ffz:global', load: fetchFfzGlobal });
   }
+  if (options.settings.providers.twitch === true) {
+    layers.push({ label: 'twitch:global', load: fetchTwitchGlobal });
+  }
 
   const results = await Promise.all(
     layers.map(async (layer) => {
       try {
-        return { emotes: await layer.load(), error: null as string | null };
+        return {
+          emotes: await withTimeout(layer.load(), PROVIDER_TIMEOUT_MS + 1_000),
+          error: null as string | null,
+        };
       } catch (error) {
         return {
           emotes: [] as Emote[],
@@ -126,9 +152,12 @@ export async function resolveEmotes(options: ResolveOptions): Promise<ResolvedEm
   return { emotes: Array.from(byCode.values()), sources, errors };
 }
 
-export async function lookupSevenTvSet(input: string): Promise<SevenTvSetInfo> {
+export async function lookupSevenTvSet(
+  input: string,
+  options: { proxyUrl?: string } = {},
+): Promise<SevenTvSetInfo> {
   const id = parseSevenTvSetId(input);
-  const set = await fetchSevenTvSet(id);
+  const set = await fetchSevenTvSet(id, { proxyUrl: options.proxyUrl });
   return {
     id,
     name: set.name,

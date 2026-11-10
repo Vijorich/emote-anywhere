@@ -1,13 +1,19 @@
 import { browser } from 'wxt/browser';
 import { bindingKey, safeChannelKey } from '../core/channel';
 import {
+  IMAGE_CACHE_EPOCH_KEY,
   MAX_CUSTOM_SETS,
   MAX_EMOTE_SCALE,
   MAX_TOTAL_CUSTOM_EMOTES,
   MIN_EMOTE_SCALE,
+  REGISTRATION_EPOCH_KEY,
 } from '../core/config';
 import { clearEmoteCache } from '../core/emotes/cache';
 import { lookupSevenTvSet, resolveEmotes } from '../core/emotes/resolve';
+import {
+  providerHealthSnapshot,
+  resetProviderHealth,
+} from '../core/emotes/health';
 import { getState, mutateState, updateSettings } from '../core/state';
 import type {
   AppSettings,
@@ -22,9 +28,19 @@ import type {
 } from '../core/types';
 import { parseCustomSet, parseSevenTvSetId } from '../core/validate';
 import { forgetFrameContext, listFrameContexts, rememberFrameContext } from './contexts';
-import { findPluginForUrl, injectIntoOpenTabs, syncContentScript, toPluginMatch } from './plugins';
+import {
+  findPluginForUrl,
+  injectIntoOpenTabs,
+  resyncOpenTabs,
+  syncContentScript,
+  toPluginMatch,
+} from './plugins';
 import { addRegistry, refreshOneRegistry, refreshRegistries, removeRegistry } from './registry';
-import { fetchImageAsDataUrl } from './images';
+import {
+  clearImageMemoryCache,
+  fetchImageAsDataUrl,
+  imageMemoryCacheSize,
+} from './images';
 
 const MAX_SETS = 50;
 
@@ -35,12 +51,15 @@ interface RegistrationPayload {
   emotes: ChatEmote[];
   sources: string[];
   errors: string[];
+  revision: string;
 }
 interface RegistrationCacheEntry {
   at: number;
+  ttlMs: number;
   resolved: RegistrationPayload;
 }
 const registrationCache = new Map<string, RegistrationCacheEntry>();
+const imageHostPermissions = new Map<string, { allowed: boolean; at: number }>();
 
 export function clearRegistrationCache(): void {
   registrationCache.clear();
@@ -71,6 +90,8 @@ export function registrationCacheKey(
     state.settings.providers.sevenTv ? '1' : '0',
     state.settings.providers.bttv ? '1' : '0',
     state.settings.providers.ffz ? '1' : '0',
+    state.settings.providers.twitch === true ? '1' : '0',
+    state.settings.sevenTvProxyUrl ?? '',
     customSets,
   ].join('|');
 }
@@ -78,7 +99,7 @@ export function registrationCacheKey(
 function getCachedRegistration(key: string): RegistrationPayload | null {
   const entry = registrationCache.get(key);
   if (!entry) return null;
-  if (Date.now() - entry.at >= REGISTRATION_CACHE_TTL_MS) {
+  if (Date.now() - entry.at >= entry.ttlMs) {
     registrationCache.delete(key);
     return null;
   }
@@ -87,24 +108,45 @@ function getCachedRegistration(key: string): RegistrationPayload | null {
   return entry.resolved;
 }
 
+function registrationRevision(cacheKey: string, emotes: ChatEmote[]): string {
+  // Stable across service-worker restarts, but changes when provider data does.
+  let hash = 2166136261;
+  for (const emote of emotes) {
+    const value = `${emote.code}\u0000${emote.url}\u0000${emote.flags}`;
+    for (let index = 0; index < value.length; index += 1) {
+      hash ^= value.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+  }
+  return `${(hash >>> 0).toString(36)}:${cacheKey}`;
+}
+
 function storeRegistration(key: string, resolved: RegistrationPayload): void {
-  // Provider failures must be retried on the next registration.
-  if (resolved.errors.length) return;
   registrationCache.delete(key);
   while (registrationCache.size >= MAX_REGISTRATION_CACHE) {
     const oldest = registrationCache.keys().next().value;
     if (oldest === undefined) break;
     registrationCache.delete(oldest);
   }
-  registrationCache.set(key, { at: Date.now(), resolved });
+  registrationCache.set(key, {
+    at: Date.now(),
+    // Partial results are retried quickly, but still stop repeated slow
+    // provider failures on every frame and reload.
+    ttlMs: resolved.errors.length ? 60_000 : REGISTRATION_CACHE_TTL_MS,
+    resolved,
+  });
 }
 
-async function prepareSets(values: string[], allowEmpty = false): Promise<string[]> {
+async function prepareSets(
+  values: string[],
+  allowEmpty = false,
+  proxyUrl?: string,
+): Promise<string[]> {
   if (!Array.isArray(values)) throw new Error('Expected a list of 7TV sets');
   if (values.length > MAX_SETS) throw new Error(`Add at most ${MAX_SETS} sets`);
   const sets = Array.from(new Set(values.map((value) => parseSevenTvSetId(value))));
   if (!sets.length && !allowEmpty) throw new Error('Add at least one 7TV set');
-  await Promise.all(sets.map((id) => lookupSevenTvSet(id)));
+  await Promise.all(sets.map((id) => lookupSevenTvSet(id, { proxyUrl })));
   return sets;
 }
 
@@ -118,6 +160,80 @@ function assertCustomSetCapacity(state: AppState, emotes: number): void {
   );
   if (totalEmotes + emotes > MAX_TOTAL_CUSTOM_EMOTES) {
     throw new Error(`Custom sets allow at most ${MAX_TOTAL_CUSTOM_EMOTES} emotes in total`);
+  }
+}
+
+function customImageHosts(state: AppState): string[] {
+  const hosts = new Set<string>();
+  for (const set of state.customSets) {
+    if (!set.enabled) continue;
+    for (const emote of set.emotes) {
+      if (!emote.url.startsWith('https://')) continue;
+      try {
+        hosts.add(new URL(emote.url).hostname);
+      } catch {
+        // Invalid custom URL is already rejected by the parser.
+      }
+    }
+  }
+  return Array.from(hosts);
+}
+
+async function allowedCustomImageHosts(state: AppState): Promise<Set<string>> {
+  const allowed = new Set<string>();
+  for (const host of customImageHosts(state)) {
+    const cached = imageHostPermissions.get(host);
+    if (cached && Date.now() - cached.at < 60_000) {
+      if (cached.allowed) allowed.add(host);
+      continue;
+    }
+    let granted = false;
+    try {
+      granted = await browser.permissions.contains({ origins: [`https://${host}/*`] });
+    } catch {
+      granted = false;
+    }
+    imageHostPermissions.set(host, { allowed: granted, at: Date.now() });
+    if (granted) allowed.add(host);
+  }
+  return allowed;
+}
+
+async function registrationEpoch(): Promise<number> {
+  try {
+    const value = (await browser.storage.local.get(REGISTRATION_EPOCH_KEY))[REGISTRATION_EPOCH_KEY];
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function bumpRegistrationEpoch(): Promise<void> {
+  try {
+    await browser.storage.local.set({ [REGISTRATION_EPOCH_KEY]: Date.now() });
+  } catch {
+    // The revision still changes if the storage write succeeds next time.
+  }
+}
+
+async function broadcastImageCacheClear(): Promise<void> {
+  try {
+    await browser.storage.local.set({ [IMAGE_CACHE_EPOCH_KEY]: Date.now() });
+  } catch {
+    // Cache epoch is an optimisation; the in-memory clear still works.
+  }
+  try {
+    const tabs = await browser.tabs.query({});
+    await Promise.all(
+      tabs.map(async (tab) => {
+        if (tab.id === undefined) return;
+        await browser.tabs
+          .sendMessage(tab.id, { type: 'ea/image-cache-clear' })
+          .catch(() => undefined);
+      }),
+    );
+  } catch {
+    // Tabs permission or restricted pages may be unavailable.
   }
 }
 
@@ -202,13 +318,13 @@ export async function handleRpc(
       const channelKey = safeChannelKey(request.channelKey);
       const key = bindingKey(plugin.key, channelKey);
       const binding = state.bindings[key] ?? null;
-      const cacheKey = registrationCacheKey(
+      const cacheKey = `${registrationCacheKey(
         state,
         plugin.key,
         plugin.updatedAt,
         binding,
         request.sevenTvId,
-      );
+      )}|epoch:${await registrationEpoch()}`;
       let registration = getCachedRegistration(cacheKey);
       if (!registration) {
         const resolved = await resolveEmotes({
@@ -219,14 +335,26 @@ export async function handleRpc(
           sevenTv: plugin.descriptor.chat.sevenTv,
           sevenTvId: request.sevenTvId,
         });
+        const emotes = resolved.emotes.map(({ code, url, flags }) => ({ code, url, flags }));
         registration = {
           // Strip the provider: content scripts never use it and it is sizable
           // at 30k resolved entries.
-          emotes: resolved.emotes.map(({ code, url, flags }) => ({ code, url, flags })),
+          emotes,
           sources: resolved.sources,
           errors: resolved.errors,
+          revision: registrationRevision(cacheKey, emotes),
         };
         storeRegistration(cacheKey, registration);
+      }
+      if (request.knownRevision && registration.revision === request.knownRevision) {
+        return {
+          ...registration,
+          emotes: [],
+          sources: [],
+          errors: [],
+          binding,
+          unchanged: true,
+        } satisfies ChatRegistration;
       }
       return { ...registration, binding } satisfies ChatRegistration;
     }
@@ -235,7 +363,7 @@ export async function handleRpc(
       const state = await getState();
       if (!state.plugins[request.pluginKey]) throw new Error('Plugin not found');
       const channelKey = safeChannelKey(request.channelKey);
-      const sets = await prepareSets(request.sets);
+      const sets = await prepareSets(request.sets, false, state.settings.sevenTvProxyUrl);
       const key = bindingKey(request.pluginKey, channelKey);
       const binding: Binding = {
         key,
@@ -257,7 +385,8 @@ export async function handleRpc(
       return true;
 
     case 'globalBinding/set': {
-      const sets = await prepareSets(request.sets, true);
+      const state = await getState();
+      const sets = await prepareSets(request.sets, true, state.settings.sevenTvProxyUrl);
       await mutateState((next) => {
         next.globalBinding = { sets };
       });
@@ -276,6 +405,7 @@ export async function handleRpc(
         assertCustomSetCapacity(next, parsed.emotes.length);
         next.customSets.push(set);
       });
+      imageHostPermissions.clear();
       return set;
     }
 
@@ -283,6 +413,7 @@ export async function handleRpc(
       await mutateState((next) => {
         next.customSets = next.customSets.filter((set) => set.id !== request.id);
       });
+      imageHostPermissions.clear();
       return true;
 
     case 'set/toggle':
@@ -290,6 +421,7 @@ export async function handleRpc(
         const set = next.customSets.find((item) => item.id === request.id);
         if (set) set.enabled = request.enabled;
       });
+      imageHostPermissions.clear();
       return true;
 
     case 'settings/update': {
@@ -301,8 +433,10 @@ export async function handleRpc(
       return state.settings;
     }
 
-    case 'sevenTv/lookupSet':
-      return lookupSevenTvSet(request.input);
+    case 'sevenTv/lookupSet': {
+      const state = await getState();
+      return lookupSevenTvSet(request.input, { proxyUrl: state.settings.sevenTvProxyUrl });
+    }
 
     case 'frame/context': {
       const tabId = sender?.tab?.id;
@@ -329,12 +463,40 @@ export async function handleRpc(
       }
       return listFrameContexts(request.tabId);
 
-    case 'image/fetch':
-      return fetchImageAsDataUrl(request.url);
+    case 'image/fetch': {
+      const state = await getState();
+      return fetchImageAsDataUrl(request.url, {
+        refresh: request.refresh === true,
+        allowFallback: state.settings.imageProxyFallback !== false,
+        allowedHosts: await allowedCustomImageHosts(state),
+        proxyUrl: state.settings.sevenTvProxyUrl,
+      });
+    }
+
+    case 'diagnostics/get': {
+      const state = await getState();
+      return {
+        providers: await providerHealthSnapshot(),
+        imageMemoryEntries: imageMemoryCacheSize(),
+        settings: state.settings,
+      };
+    }
+
+    case 'providers/retry':
+      await resetProviderHealth();
+      clearRegistrationCache();
+      await bumpRegistrationEpoch();
+      await resyncOpenTabs();
+      return true;
 
     case 'cache/clear':
       clearRegistrationCache();
+      clearImageMemoryCache();
       await clearEmoteCache();
+      await resetProviderHealth();
+      await bumpRegistrationEpoch();
+      await broadcastImageCacheClear();
+      await resyncOpenTabs();
       return true;
 
     default: {

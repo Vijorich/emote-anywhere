@@ -48,6 +48,22 @@ if (!registry) {
   }
 }
 
+for (const file of ['7tv-global.json', 'twitch-global.json']) {
+  const path = `registry/emotes/${file}`;
+  if (!(await exists(path))) {
+    notes.push(`Snapshot missing: ${path}`);
+    continue;
+  }
+  try {
+    const data = JSON.parse(await readFile(path, 'utf8'));
+    if (data?.schemaVersion !== 1 || !Array.isArray(data.emotes) || !data.emotes.length) {
+      failures.push(`Snapshot is not a non-empty schemaVersion 1 file: ${path}`);
+    }
+  } catch {
+    failures.push(`Snapshot is not valid JSON: ${path}`);
+  }
+}
+
 for (const icon of [16, 32, 48, 128]) {
   if (!(await exists(`public/icon-${icon}.png`))) failures.push(`Missing public/icon-${icon}.png`);
 }

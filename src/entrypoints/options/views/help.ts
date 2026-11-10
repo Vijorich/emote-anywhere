@@ -15,7 +15,7 @@ export function helpView(): HTMLElement {
         { class: 'panel about-panel' },
         h('p', {
           class: 'section-note',
-          text: 'Emote images come from 7TV, BetterTTV, FrankerFaceZ or a custom set you add. The extension has no accounts or analytics. Chat text stays on the page.',
+          text: 'Emote images come from 7TV, BetterTTV, FrankerFaceZ, Twitch or a custom set you add. If a CDN is blocked, the extension can use published metadata snapshots and an image fallback; chat text stays on the page. The extension has no accounts or analytics.',
         }),
       ),
     ),

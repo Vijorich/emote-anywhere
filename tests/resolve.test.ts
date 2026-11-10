@@ -23,10 +23,19 @@ vi.mock('../src/core/emotes/seven-tv', () => ({
 
 vi.mock('../src/core/emotes/bttv', () => ({
   fetchBttvGlobal: vi.fn(async () => []),
+  fetchBttvChannel: vi.fn(async () => [
+    emote('bttv-channel', 'https://cdn.example/bttv-channel.png'),
+  ]),
 }));
 
 vi.mock('../src/core/emotes/ffz', () => ({
   fetchFfzGlobal: vi.fn(async () => []),
+  fetchFfzChannel: vi.fn(async () => [
+    emote('ffz-channel', 'https://cdn.example/ffz-channel.png'),
+  ]),
+}));
+vi.mock('../src/core/emotes/twitch', () => ({
+  fetchTwitchGlobal: vi.fn(async () => [emote('twitch-emote', 'https://cdn.example/twitch.png')]),
 }));
 
 import { resolveEmotes, type ResolveOptions } from '../src/core/emotes/resolve';
@@ -79,6 +88,33 @@ describe('resolveEmotes', () => {
       'set-bbbbbb',
       'global-emote',
     ]);
+  });
+
+  it('adds BTTV and FFZ channel layers for a Twitch channel without a binding', async () => {
+    const result = await resolveEmotes(
+      options({
+        settings: {
+          ...settings,
+          providers: { ...settings.providers, bttv: true, ffz: true },
+        },
+      }),
+    );
+    expect(result.sources).toContain('7tv:twitch:chan');
+    expect(result.sources).toContain('bttv:channel:chan');
+    expect(result.sources).toContain('ffz:channel:chan');
+  });
+
+  it('adds Twitch global only when the provider is enabled', async () => {
+    const result = await resolveEmotes(
+      options({
+        settings: {
+          ...settings,
+          providers: { ...settings.providers, twitch: true },
+        },
+      }),
+    );
+    expect(result.sources).toContain('twitch:global');
+    expect(result.emotes.map((emote) => emote.code)).toContain('twitch-emote');
   });
 
   it('applies global sets when no per-chat binding exists', async () => {

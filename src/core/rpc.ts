@@ -1,22 +1,36 @@
 import { browser } from 'wxt/browser';
 import type { RpcRequest, RpcResponse, RpcSender } from './types';
 
-export async function rpc<T>(request: RpcRequest): Promise<T>;
+export interface RpcOptions {
+  timeoutMs?: number;
+}
+
+export async function rpc<T>(request: RpcRequest, options?: RpcOptions): Promise<T>;
 export async function rpc<T>(
   type: RpcRequest['type'],
   payload?: Record<string, unknown>,
+  options?: RpcOptions,
 ): Promise<T>;
 export async function rpc<T>(
   requestOrType: RpcRequest | RpcRequest['type'],
-  payload?: Record<string, unknown>,
+  payloadOrOptions?: Record<string, unknown> | RpcOptions,
+  maybeOptions?: RpcOptions,
 ): Promise<T> {
+  const options =
+    typeof requestOrType === 'string'
+      ? (maybeOptions ?? {})
+      : ((payloadOrOptions as RpcOptions | undefined) ?? {});
+  const payload = typeof requestOrType === 'string' ? (payloadOrOptions as Record<string, unknown> | undefined) : undefined;
   const request =
     typeof requestOrType === 'string'
       ? ({ type: requestOrType, ...(payload ?? {}) } as RpcRequest)
       : requestOrType;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('Background request timed out')), 30_000);
+    timer = setTimeout(
+      () => reject(new Error('Background request timed out')),
+      options.timeoutMs ?? 30_000,
+    );
   });
   let response: RpcResponse<T> | undefined;
   try {
