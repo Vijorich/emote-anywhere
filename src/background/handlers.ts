@@ -14,6 +14,7 @@ import {
   providerHealthSnapshot,
   resetProviderHealth,
 } from '../core/emotes/health';
+import { encodeProviders } from '../core/provider-chars';
 import { getState, mutateState, updateSettings } from '../core/state';
 import type {
   AppSettings,
@@ -49,6 +50,7 @@ const REGISTRATION_CACHE_TTL_MS = 5 * 60 * 1000;
 const MAX_REGISTRATION_CACHE = 8;
 interface RegistrationPayload {
   emotes: ChatEmote[];
+  providers: string;
   sources: string[];
   errors: string[];
   revision: string;
@@ -118,7 +120,8 @@ function registrationRevision(cacheKey: string, emotes: ChatEmote[]): string {
       hash = Math.imul(hash, 16777619);
     }
   }
-  return `${(hash >>> 0).toString(36)}:${cacheKey}`;
+  // v2 prefix invalidates registrations stored before the providers field existed.
+  return `v2:${(hash >>> 0).toString(36)}:${cacheKey}`;
 }
 
 function storeRegistration(key: string, resolved: RegistrationPayload): void {
@@ -337,9 +340,11 @@ export async function handleRpc(
         });
         const emotes = resolved.emotes.map(({ code, url, flags }) => ({ code, url, flags }));
         registration = {
-          // Strip the provider: content scripts never use it and it is sizable
-          // at 30k resolved entries.
+          // Strip the provider from each emote: content scripts never use it and
+          // it is sizable at 30k resolved entries. The sidecar below keeps the
+          // provider data compact instead (one char per emote).
           emotes,
+          providers: encodeProviders(resolved.emotes),
           sources: resolved.sources,
           errors: resolved.errors,
           revision: registrationRevision(cacheKey, emotes),

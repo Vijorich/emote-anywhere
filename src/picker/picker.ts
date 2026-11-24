@@ -6,12 +6,20 @@ import { PICKER_HOST_CLASS } from '../engine/render';
 import { crossIcon } from '../ui/components';
 import { insertIntoComposer } from './insert';
 
-const MAX_VISIBLE = 500;
 const LONG_PRESS_MS = 380;
 const CLICK_SUPPRESS_MS = 700;
 /** Large sets rebuild a full grid on each keystroke; let typing settle first. */
 const SEARCH_DEBOUNCE_MS = 100;
 const SEARCH_DEBOUNCE_MIN_EMOTES = 500;
+
+/** Tab order in the picker; chars match core/provider-chars. */
+const PROVIDER_TABS: ReadonlyArray<{ char: string; label: string }> = [
+  { char: '7', label: '7TV' },
+  { char: 'b', label: 'BTTV' },
+  { char: 'f', label: 'FFZ' },
+  { char: 't', label: 'Twitch' },
+  { char: 'c', label: 'Custom' },
+];
 
 function fabIcon(): SVGSVGElement {
   const ns = 'http://www.w3.org/2000/svg';
@@ -160,6 +168,33 @@ button, input { font: inherit; color: inherit; }
 }
 .close:hover { background: var(--ea-control); color: var(--ea-text); }
 .close svg { display: block; }
+.tabs {
+  display: flex; gap: 8px; padding: 0 16px 12px;
+  overflow-x: auto; scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.type-bar { padding-top: 0; }
+.type-bar .tab { min-height: 28px; padding: 0 10px; font-size: 12px; }
+.tab {
+  flex: 0 0 auto; min-height: 32px; padding: 0 12px;
+  border: 0; border-radius: 8px;
+  background: var(--ea-raised); color: var(--ea-muted);
+  font-size: 13px; font-weight: 600; line-height: 1;
+  white-space: nowrap; cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+.tab:hover { background: var(--ea-control); color: var(--ea-text); }
+.tab[aria-selected="true"] {
+  background: var(--ea-accent-soft); color: var(--ea-accent);
+  box-shadow: inset 0 0 0 2px var(--ea-accent);
+}
+.tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ea-accent);
+}
+.tab[aria-selected="true"]:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--ea-accent), 0 0 0 2px var(--ea-accent);
+}
 .grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
   gap: 8px; padding: 0 16px 16px; overflow-y: auto; align-content: start;
@@ -248,24 +283,23 @@ button, input { font: inherit; color: inherit; }
   to { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cell, .zoom-card { transition: none; animation: none; }
+  .cell, .tab, .zoom-card { transition: none; animation: none; }
   .cell.pressed { transform: none; }
 }
 @media (pointer: coarse) {
   .fab { width: 48px; height: 48px; }
   .close { width: 48px; height: 48px; }
   .search { min-height: 48px; font-size: 16px; }
+  .tab { min-height: 44px; padding: 0 16px; font-size: 14px; }
+  .type-bar .tab { min-height: 40px; }
 }
 @media (forced-colors: active) {
   .cell.selected { outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }
+  .tab[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }
 }
 .sr-status {
   position: absolute; width: 1px; height: 1px; margin: -1px;
   overflow: hidden; clip-path: inset(50%); white-space: nowrap;
-}
-.grid-note {
-  grid-column: 1 / -1; padding: 8px; color: var(--ea-muted);
-  font-size: 13px; line-height: 1.5; text-align: center;
 }
 .empty { padding: 32px 24px; text-align: center; color: var(--ea-muted); font-size: 16px; line-height: 1.5; }
 `;
@@ -274,12 +308,19 @@ export class EmotePicker {
   private readonly descriptor: PluginDescriptor;
   private readonly settings: Pick<AppSettings, 'pickerEnabled'>;
   private emotes: ChatEmote[];
-  private readonly searchIndex: Array<{ emote: ChatEmote; search: string }>;
+  private readonly providers: string;
+  private readonly searchIndex: Array<{ emote: ChatEmote; search: string; provider: string }>;
   private composer: HTMLElement | null = null;
   private host: HTMLDivElement | null = null;
   private shadow: ShadowRoot | null = null;
   private panel: HTMLDivElement | null = null;
   private input: HTMLInputElement | null = null;
+  private tabsBar: HTMLDivElement | null = null;
+  private tabButtons: HTMLButtonElement[] = [];
+  private activeProvider = '';
+  private typeBar: HTMLDivElement | null = null;
+  private typeButtons: HTMLButtonElement[] = [];
+  private activeType: '' | 'standard' | 'overlay' = '';
   private grid: HTMLDivElement | null = null;
   private fab: HTMLButtonElement | null = null;
   private closeButton: HTMLButtonElement | null = null;
@@ -398,10 +439,20 @@ export class EmotePicker {
     if (this.pressTimer !== null || this.previewing) event.preventDefault();
   };
 
-  constructor(descriptor: PluginDescriptor, emotes: ChatEmote[], settings: Pick<AppSettings, 'pickerEnabled'>) {
+  constructor(
+    descriptor: PluginDescriptor,
+    emotes: ChatEmote[],
+    settings: Pick<AppSettings, 'pickerEnabled'>,
+    providers?: string,
+  ) {
     this.descriptor = descriptor;
     this.emotes = emotes;
-    this.searchIndex = emotes.map((emote) => ({ emote, search: emote.code.toLowerCase() }));
+    this.providers = providers !== undefined && providers.length === emotes.length ? providers : '';
+    this.searchIndex = emotes.map((emote, index) => ({
+      emote,
+      search: emote.code.toLowerCase(),
+      provider: this.providers.charAt(index),
+    }));
     this.settings = settings;
   }
 
@@ -440,6 +491,10 @@ export class EmotePicker {
     this.shadow = null;
     this.panel = null;
     this.input = null;
+    this.tabsBar = null;
+    this.tabButtons = [];
+    this.typeBar = null;
+    this.typeButtons = [];
     this.grid = null;
     this.fab = null;
     this.closeButton = null;
@@ -594,6 +649,71 @@ export class EmotePicker {
     close.addEventListener('click', () => this.close(true));
     head.append(input, close);
 
+    // Provider tabs appear only when the registration carried provider data;
+    // tabs for providers with no emotes in the list are noise.
+    let tabsBar: HTMLDivElement | null = null;
+    const tabButtons: HTMLButtonElement[] = [];
+    const presentTabs = PROVIDER_TABS.filter((tab) => this.providers.includes(tab.char));
+    if (presentTabs.length) {
+      tabsBar = document.createElement('div');
+      tabsBar.className = 'tabs';
+      tabsBar.setAttribute('role', 'tablist');
+      tabsBar.setAttribute('aria-label', 'Emote provider');
+      for (const def of [{ char: '', label: 'All' }, ...presentTabs]) {
+        const tab = document.createElement('button');
+        tab.type = 'button';
+        tab.className = 'tab';
+        tab.textContent = def.label;
+        tab.setAttribute('role', 'tab');
+        tab.setAttribute('aria-selected', String(def.char === this.activeProvider));
+        tab.setAttribute('aria-controls', 'ea-emote-grid');
+        if (def.char) tab.dataset.provider = def.char;
+        // Keep the panel click handler from clearing the fresh grid's roving tab stop.
+        tab.addEventListener('click', (event) => {
+          event.stopPropagation();
+          this.selectProvider(def.char);
+        });
+        tabButtons.push(tab);
+      }
+      tabsBar.append(...tabButtons);
+    }
+
+    // Type chips appear only when the list mixes standard and overlaying
+    // emotes; a row that cannot change the result is noise. They reuse the
+    // tab styles and class so keyboard handling matches the provider row.
+    let typeBar: HTMLDivElement | null = null;
+    const typeButtons: HTMLButtonElement[] = [];
+    const hasOverlaying = this.emotes.some((emote) => isZeroWidth(emote));
+    const hasStandard = this.emotes.some((emote) => !isZeroWidth(emote));
+    if (hasOverlaying && hasStandard) {
+      typeBar = document.createElement('div');
+      typeBar.className = 'tabs type-bar';
+      typeBar.setAttribute('role', 'tablist');
+      typeBar.setAttribute('aria-label', 'Emote type');
+      const defs: Array<{ type: '' | 'standard' | 'overlay'; label: string }> = [
+        { type: '', label: 'All' },
+        { type: 'standard', label: 'Standard' },
+        { type: 'overlay', label: 'Overlaying' },
+      ];
+      for (const def of defs) {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'tab';
+        chip.textContent = def.label;
+        chip.setAttribute('role', 'tab');
+        chip.setAttribute('aria-selected', String(def.type === this.activeType));
+        chip.setAttribute('aria-controls', 'ea-emote-grid');
+        if (def.type) chip.dataset.type = def.type;
+        // Keep the panel click handler from clearing the fresh grid's roving tab stop.
+        chip.addEventListener('click', (event) => {
+          event.stopPropagation();
+          this.selectType(def.type);
+        });
+        typeButtons.push(chip);
+      }
+      typeBar.append(...typeButtons);
+    }
+
     const grid = document.createElement('div');
     grid.className = 'grid';
     grid.id = 'ea-emote-grid';
@@ -661,7 +781,17 @@ export class EmotePicker {
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
 
-    panel.append(head, grid, status);
+    if (tabsBar || typeBar) {
+      panel.append(
+        head,
+        ...(tabsBar ? [tabsBar] : []),
+        ...(typeBar ? [typeBar] : []),
+        grid,
+        status,
+      );
+    } else {
+      panel.append(head, grid, status);
+    }
     shadow.append(fab, panel, zoom);
     document.documentElement.append(host);
 
@@ -670,6 +800,10 @@ export class EmotePicker {
     this.fab = fab;
     this.panel = panel;
     this.input = input;
+    this.tabsBar = tabsBar;
+    this.tabButtons = tabButtons;
+    this.typeBar = typeBar;
+    this.typeButtons = typeButtons;
     this.grid = grid;
     this.closeButton = close;
     this.status = status;
@@ -705,6 +839,38 @@ export class EmotePicker {
     }
     this.renderGrid();
     this.input.focus();
+  }
+
+  /** Switching provider re-renders at once; the debounce is only for typing. */
+  private selectProvider(char: string): void {
+    if (this.activeProvider === char) return;
+    this.activeProvider = char;
+    this.selected = -1;
+    this.input?.removeAttribute('aria-activedescendant');
+    for (const tab of this.tabButtons) {
+      tab.setAttribute('aria-selected', String((tab.dataset.provider ?? '') === char));
+    }
+    if (this.renderTimer !== null) {
+      window.clearTimeout(this.renderTimer);
+      this.renderTimer = null;
+    }
+    this.renderGrid();
+  }
+
+  /** Switching type re-renders at once; the debounce is only for typing. */
+  private selectType(type: '' | 'standard' | 'overlay'): void {
+    if (this.activeType === type) return;
+    this.activeType = type;
+    this.selected = -1;
+    this.input?.removeAttribute('aria-activedescendant');
+    for (const chip of this.typeButtons) {
+      chip.setAttribute('aria-selected', String((chip.dataset.type ?? '') === type));
+    }
+    if (this.renderTimer !== null) {
+      window.clearTimeout(this.renderTimer);
+      this.renderTimer = null;
+    }
+    this.renderGrid();
   }
 
   private scheduleGridRender(): void {
@@ -770,6 +936,18 @@ export class EmotePicker {
     }
     const target = event.target as Element | null;
     if (target?.closest('.close')) return;
+    const tab = target?.closest('.tab');
+    if (tab) {
+      // Activate the tab like a native button (jsdom has no key activation,
+      // and selectProvider is idempotent if a browser also fires a click).
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        (tab as HTMLElement).click();
+        return;
+      }
+      // Keep arrows from moving the grid selection while a tab is focused.
+      if (event.key.startsWith('Arrow')) return;
+    }
     if (event.key === 'Enter' && event.shiftKey) {
       event.preventDefault();
       this.flushGridRender();
@@ -805,6 +983,8 @@ export class EmotePicker {
     );
     const focusables: HTMLElement[] = [
       ...(this.input ? [this.input] : []),
+      ...this.tabButtons,
+      ...this.typeButtons,
       ...(this.closeButton ? [this.closeButton] : []),
       ...cells,
     ];
@@ -1032,12 +1212,17 @@ export class EmotePicker {
     if (!this.grid) return;
     this.setPressedCell(null);
     const filter = this.input?.value.trim().toLowerCase() ?? '';
-    const filtered = filter
-      ? this.searchIndex
-          .filter((entry) => entry.search.includes(filter))
-          .map((entry) => entry.emote)
-      : this.emotes;
-    this.visible = filtered.slice(0, MAX_VISIBLE);
+    const provider = this.activeProvider;
+    const type = this.activeType;
+    const filtered = this.searchIndex
+      .filter(
+        (entry) =>
+          (!provider || entry.provider === provider) &&
+          (!type || (type === 'overlay') === isZeroWidth(entry.emote)) &&
+          (!filter || entry.search.includes(filter)),
+      )
+      .map((entry) => entry.emote);
+    this.visible = filtered;
     if (this.selected >= this.visible.length) this.selected = -1;
     if (this.selected < 0) this.input?.removeAttribute('aria-activedescendant');
 
@@ -1124,15 +1309,7 @@ export class EmotePicker {
         }
         fragment.append(cell);
       });
-      if (filtered.length > MAX_VISIBLE) {
-        const note = document.createElement('div');
-        note.className = 'grid-note';
-        note.textContent = `Showing first ${MAX_VISIBLE} of ${filtered.length}. Refine the search.`;
-        fragment.append(note);
-        this.setStatus(`Showing first ${MAX_VISIBLE} of ${filtered.length} emotes. Refine the search.`);
-      } else {
-        this.setStatus(`${this.visible.length} emote${this.visible.length === 1 ? '' : 's'}`);
-      }
+      this.setStatus(`${this.visible.length} emote${this.visible.length === 1 ? '' : 's'}`);
       this.grid.append(fragment);
     }
     this.grid.scrollTop = 0;

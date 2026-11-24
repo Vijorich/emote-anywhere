@@ -265,7 +265,7 @@ function start(): void {
     });
     engine.start();
 
-    picker = new EmotePicker(match.descriptor, registration.emotes, match.settings);
+    picker = new EmotePicker(match.descriptor, registration.emotes, match.settings, registration.providers);
     picker.start();
     publishContext(context);
 

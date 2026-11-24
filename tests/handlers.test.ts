@@ -237,9 +237,11 @@ describe('RPC boundaries', () => {
 
     const first = (await handleRpc(request, null)) as {
       emotes: Array<Record<string, unknown>>;
+      providers: string;
     };
     await handleRpc(request, null);
     expect(resolver.resolveEmotes).toHaveBeenCalledTimes(1);
+    expect(first.providers).toBe('7');
     expect(first.emotes[0]).toEqual({
       code: 'peepoSad',
       url: 'https://cdn.example/e.png',

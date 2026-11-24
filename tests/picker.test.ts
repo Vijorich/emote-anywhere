@@ -40,8 +40,8 @@ function contentComposer(text = 'AB'): HTMLElement {
   return composer;
 }
 
-function startPicker(spec = descriptor(), list = emotes): EmotePicker {
-  const picker = new EmotePicker(spec, list, { pickerEnabled: true });
+function startPicker(spec = descriptor(), list = emotes, providers?: string): EmotePicker {
+  const picker = new EmotePicker(spec, list, { pickerEnabled: true }, providers);
   pickers.push(picker);
   picker.start();
   return picker;
@@ -97,6 +97,10 @@ function openFromFab(): void {
 
 function cells(): HTMLButtonElement[] {
   return Array.from(ui().grid.querySelectorAll<HTMLButtonElement>('.cell'));
+}
+
+function tabs(): HTMLButtonElement[] {
+  return Array.from(ui().panel.querySelectorAll<HTMLButtonElement>('.tab'));
 }
 
 function expectSelected(all: HTMLButtonElement[], index: number): void {
@@ -524,11 +528,11 @@ describe('EmotePicker keyboard grid', () => {
     openFromFab();
     const { input, shadow } = ui();
     const status = shadow.querySelector('[role="status"]');
-    expect(status?.textContent).toBe('Showing first 500 of 600 emotes. Refine the search.');
+    expect(status?.textContent).toBe('600 emotes');
 
     input.value = 'emote599';
     input.dispatchEvent(new Event('input', { bubbles: true }));
-    expect(status?.textContent).toBe('Showing first 500 of 600 emotes. Refine the search.');
+    expect(status?.textContent).toBe('600 emotes');
 
     vi.advanceTimersByTime(100);
     expect(status?.textContent).toBe('1 emote');
@@ -556,13 +560,13 @@ describe('EmotePicker keyboard grid', () => {
     openFromFab();
     const { input, shadow } = ui();
     const status = shadow.querySelector('[role="status"]');
-    expect(status?.textContent).toBe('Showing first 500 of 600 emotes. Refine the search.');
+    expect(status?.textContent).toBe('600 emotes');
 
     input.value = 'emote5';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     key(input, 'x');
 
-    expect(status?.textContent).toBe('Showing first 500 of 600 emotes. Refine the search.');
+    expect(status?.textContent).toBe('600 emotes');
     vi.advanceTimersByTime(100);
     expect(status?.textContent).toBe('111 emotes');
   });
@@ -589,6 +593,428 @@ describe('EmotePicker keyboard grid', () => {
     input.dispatchEvent(new Event('input', { bubbles: true }));
 
     expect(observers).toHaveLength(1);
+  });
+});
+
+describe('EmotePicker provider tabs', () => {
+  // zero=7tv, one/two/three=bttv, four/five=twitch, six=custom
+  const mixed = '7bbbttc';
+
+  function tabLabels(): string[] {
+    return tabs().map((tab) => tab.textContent ?? '');
+  }
+
+  it('renders only the tabs for providers present in the list', () => {
+    contentComposer();
+    startPicker(descriptor(), emotes, mixed);
+    openFromFab();
+
+    const bar = ui().panel.querySelector('.tabs');
+    expect(bar?.getAttribute('role')).toBe('tablist');
+    expect(bar?.getAttribute('aria-label')).toBe('Emote provider');
+    expect(tabLabels()).toEqual(['All', '7TV', 'BTTV', 'Twitch', 'Custom']);
+    expect(tabs().every((tab) => tab.getAttribute('role') === 'tab')).toBe(true);
+    expect(tabs().every((tab) => tab.getAttribute('aria-controls') === 'ea-emote-grid')).toBe(true);
+    expect(tabs()[0]!.getAttribute('aria-selected')).toBe('true');
+    expect(tabs().slice(1).every((tab) => tab.getAttribute('aria-selected') === 'false')).toBe(true);
+  });
+
+  it('renders no tab bar without provider data', () => {
+    contentComposer();
+    startPicker();
+    openFromFab();
+    expect(ui().panel.querySelector('.tabs')).toBeNull();
+    expect(tabs()).toHaveLength(0);
+  });
+
+  it('renders no tab bar when the providers string length does not match', () => {
+    contentComposer();
+    startPicker(descriptor(), emotes, '77');
+    openFromFab();
+    expect(ui().panel.querySelector('.tabs')).toBeNull();
+    expect(cells()).toHaveLength(7);
+  });
+
+  it('clicking a tab filters the grid and updates aria-selected; All restores', () => {
+    contentComposer();
+    startPicker(descriptor(), emotes, mixed);
+    openFromFab();
+    const [all, sevenTv, bttv] = tabs();
+
+    bttv!.click();
+    expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual(['one', 'two', 'three']);
+    expect(bttv!.getAttribute('aria-selected')).toBe('true');
+    expect(all!.getAttribute('aria-selected')).toBe('false');
+
+    sevenTv!.click();
+    expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual(['zero']);
+    expect(sevenTv!.getAttribute('aria-selected')).toBe('true');
+    expect(bttv!.getAttribute('aria-selected')).toBe('false');
+
+    all!.click();
+    expect(cells()).toHaveLength(7);
+    expect(all!.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('keeps the chosen tab across close and reopen', () => {
+    contentComposer();
+    startPicker(descriptor(), emotes, mixed);
+    openFromFab();
+    tabs()[2]!.click();
+    expect(cells()).toHaveLength(3);
+
+    key(ui().input, 'Escape');
+    expect(ui().panel.hidden).toBe(true);
+    openFromFab();
+
+    expect(tabs()[2]!.getAttribute('aria-selected')).toBe('true');
+    expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual(['one', 'two', 'three']);
+  });
+
+  it('combines the search with the active tab and re-filters on tab switch', () => {
+    contentComposer();
+    startPicker(descriptor(), emotes, mixed);
+    openFromFab();
+    const { input } = ui();
+    const [all, , bttv] = tabs();
+
+    bttv!.click();
+    input.value = 'e';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual(['one', 'three']);
+
+    all!.click();
+    expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual([
+      'zero',
+      'one',
+      'three',
+      'five',
+    ]);
+
+    input.value = 'zzz';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    bttv!.click();
+    expect(cells()).toHaveLength(0);
+    expect(ui().grid.querySelector('.empty')?.textContent).toBe('No emotes match this search.');
+  });
+
+  it('Enter and Space on a focused tab activate it instead of inserting an emote', () => {
+    const composer = contentComposer();
+    startPicker(descriptor(), emotes, mixed);
+    openFromFab();
+    const { input, shadow } = ui();
+    const bttv = tabs()[2]!;
+
+    bttv.focus();
+    key(bttv, 'Enter');
+    expect(composer.textContent).toBe('AB');
+    expect(bttv.getAttribute('aria-selected')).toBe('true');
+    expect(cells()).toHaveLength(3);
+    expect(shadow.activeElement).toBe(bttv);
+
+    const custom = tabs()[4]!;
+    custom.focus();
+    key(custom, ' ');
+    custom.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', bubbles: true, cancelable: true }));
+    expect(composer.textContent).toBe('AB');
+    expect(custom.getAttribute('aria-selected')).toBe('true');
+    expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual(['six']);
+
+    expect(input.getAttribute('aria-activedescendant')).toBeNull();
+  });
+
+  it('arrow keys on a focused tab do not move the grid selection', () => {
+    contentComposer();
+    startPicker(descriptor(), emotes, mixed);
+    openFromFab();
+    const { input } = ui();
+    const bttv = tabs()[2]!;
+
+    bttv.focus();
+    key(bttv, 'ArrowDown');
+    key(bttv, 'ArrowRight');
+
+    expect(ui().grid.querySelector('.cell.selected')).toBeNull();
+    expect(input.getAttribute('aria-activedescendant')).toBeNull();
+    expect(tabs()[0]!.getAttribute('aria-selected')).toBe('true');
+    expect(bttv.getAttribute('aria-selected')).toBe('false');
+    expect(cells()).toHaveLength(7);
+  });
+
+  it('clears a stale grid selection when switching tabs', () => {
+    contentComposer();
+    startPicker(descriptor(), emotes, mixed);
+    openFromFab();
+    const { input } = ui();
+
+    key(input, 'ArrowDown');
+    expect(input.getAttribute('aria-activedescendant')).toBe(cells()[0]!.id);
+
+    tabs()[2]!.click();
+    expect(input.getAttribute('aria-activedescendant')).toBeNull();
+    expect(ui().grid.querySelector('.cell.selected')).toBeNull();
+    expect(cells()[0]!.tabIndex).toBe(0);
+  });
+
+  it('includes the tab row in the Tab focus trap', () => {
+    contentComposer();
+    startPicker(descriptor(), emotes, mixed);
+    openFromFab();
+    const { input, shadow } = ui();
+
+    key(input, 'ArrowDown');
+    const rovingCell = cells()[0]!;
+    expect(rovingCell.tabIndex).toBe(0);
+    rovingCell.focus();
+    key(rovingCell, 'Tab');
+    expect(shadow.activeElement).toBe(input);
+
+    key(input, 'Tab', { shiftKey: true });
+    expect(shadow.activeElement).toBe(rovingCell);
+
+    const bttv = tabs()[2]!;
+    bttv.focus();
+    const event = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    });
+    bttv.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(shadow.activeElement).toBe(bttv);
+  });
+});
+
+describe('EmotePicker type filters', () => {
+  // plain7/over7=7tv, plainB/overB=bttv; over* carry the zero-width flag.
+  const mixedTyped: Emote[] = [
+    { code: 'plain7', url: 'https://cdn.example/plain7.png', flags: 0, provider: '7tv' },
+    {
+      code: 'over7',
+      url: 'https://cdn.example/over7.png',
+      flags: ZERO_WIDTH_DATA_FLAG,
+      provider: '7tv',
+    },
+    { code: 'plainB', url: 'https://cdn.example/plainB.png', flags: 0, provider: 'bttv' },
+    {
+      code: 'overB',
+      url: 'https://cdn.example/overB.png',
+      flags: ZERO_WIDTH_DATA_FLAG,
+      provider: 'bttv',
+    },
+  ];
+  const typedProviders = '77bb';
+
+  const allOverlaying: Emote[] = mixedTyped.map((emote) => ({
+    ...emote,
+    flags: ZERO_WIDTH_DATA_FLAG,
+  }));
+
+  function typeChips(): HTMLButtonElement[] {
+    return Array.from(ui().panel.querySelectorAll<HTMLButtonElement>('.type-bar .tab'));
+  }
+
+  function providerTabs(): HTMLButtonElement[] {
+    return Array.from(
+      ui().panel.querySelectorAll<HTMLButtonElement>('.tabs:not(.type-bar) .tab'),
+    );
+  }
+
+  it('renders no chip row when every emote is standard', () => {
+    contentComposer();
+    startPicker(descriptor(), emotes);
+    openFromFab();
+    expect(ui().panel.querySelector('.type-bar')).toBeNull();
+  });
+
+  it('renders no chip row when every emote is overlaying', () => {
+    contentComposer();
+    startPicker(descriptor(), allOverlaying);
+    openFromFab();
+    expect(ui().panel.querySelector('.type-bar')).toBeNull();
+  });
+
+  it('renders All / Standard / Overlaying chips with tab semantics', () => {
+    contentComposer();
+    startPicker(descriptor(), mixedTyped, typedProviders);
+    openFromFab();
+
+    const bar = ui().panel.querySelector('.type-bar');
+    expect(bar?.getAttribute('role')).toBe('tablist');
+    expect(bar?.getAttribute('aria-label')).toBe('Emote type');
+    expect(typeChips().map((chip) => chip.textContent)).toEqual([
+      'All',
+      'Standard',
+      'Overlaying',
+    ]);
+    expect(typeChips().every((chip) => chip.getAttribute('role') === 'tab')).toBe(true);
+    expect(typeChips().every((chip) => chip.getAttribute('aria-controls') === 'ea-emote-grid')).toBe(
+      true,
+    );
+    expect(typeChips()[0]!.getAttribute('aria-selected')).toBe('true');
+    expect(typeChips().slice(1).every((chip) => chip.getAttribute('aria-selected') === 'false')).toBe(
+      true,
+    );
+  });
+
+  it('renders the chip row alone when no provider data exists', () => {
+    contentComposer();
+    startPicker(descriptor(), mixedTyped);
+    openFromFab();
+
+    expect(ui().panel.querySelector('.tabs:not(.type-bar)')).toBeNull();
+    expect(typeChips()).toHaveLength(3);
+  });
+
+  it('clicking a chip filters the grid and updates aria-selected; All restores', () => {
+    contentComposer();
+    startPicker(descriptor(), mixedTyped, typedProviders);
+    openFromFab();
+    const [all, standard, overlaying] = typeChips();
+
+    overlaying!.click();
+    expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual([
+      'over7, overlaying emote',
+      'overB, overlaying emote',
+    ]);
+    expect(overlaying!.getAttribute('aria-selected')).toBe('true');
+    expect(all!.getAttribute('aria-selected')).toBe('false');
+
+    standard!.click();
+    expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual(['plain7', 'plainB']);
+    expect(standard!.getAttribute('aria-selected')).toBe('true');
+    expect(overlaying!.getAttribute('aria-selected')).toBe('false');
+
+    all!.click();
+    expect(cells()).toHaveLength(4);
+    expect(all!.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('combines the chip with the search text and the active provider tab', () => {
+    contentComposer();
+    startPicker(descriptor(), mixedTyped, typedProviders);
+    openFromFab();
+    const { input } = ui();
+    const sevenTv = providerTabs()[1]!;
+    const overlaying = typeChips()[2]!;
+
+    sevenTv.click();
+    expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual([
+      'plain7',
+      'over7, overlaying emote',
+    ]);
+
+    overlaying.click();
+    expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual([
+      'over7, overlaying emote',
+    ]);
+
+    input.value = 'over';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual([
+      'over7, overlaying emote',
+    ]);
+
+    input.value = 'zzz';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(cells()).toHaveLength(0);
+    expect(ui().grid.querySelector('.empty')?.textContent).toBe('No emotes match this search.');
+
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    typeChips()[1]!.click();
+    expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual(['plain7']);
+  });
+
+  it('Enter and Space on a focused chip activate it instead of inserting an emote', () => {
+    const composer = contentComposer();
+    startPicker(descriptor(), mixedTyped, typedProviders);
+    openFromFab();
+    const { input, shadow } = ui();
+    const overlaying = typeChips()[2]!;
+
+    overlaying.focus();
+    key(overlaying, 'Enter');
+    expect(composer.textContent).toBe('AB');
+    expect(overlaying.getAttribute('aria-selected')).toBe('true');
+    expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual([
+      'over7, overlaying emote',
+      'overB, overlaying emote',
+    ]);
+    expect(shadow.activeElement).toBe(overlaying);
+
+    const standard = typeChips()[1]!;
+    standard.focus();
+    key(standard, ' ');
+    standard.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', bubbles: true, cancelable: true }));
+    expect(composer.textContent).toBe('AB');
+    expect(standard.getAttribute('aria-selected')).toBe('true');
+    expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual(['plain7', 'plainB']);
+
+    expect(input.getAttribute('aria-activedescendant')).toBeNull();
+  });
+
+  it('arrow keys on a focused chip do not move the grid selection', () => {
+    contentComposer();
+    startPicker(descriptor(), mixedTyped, typedProviders);
+    openFromFab();
+    const overlaying = typeChips()[2]!;
+
+    overlaying.focus();
+    key(overlaying, 'ArrowDown');
+    key(overlaying, 'ArrowRight');
+
+    expect(ui().grid.querySelector('.cell.selected')).toBeNull();
+    expect(ui().input.getAttribute('aria-activedescendant')).toBeNull();
+    expect(typeChips()[0]!.getAttribute('aria-selected')).toBe('true');
+    expect(overlaying.getAttribute('aria-selected')).toBe('false');
+    expect(cells()).toHaveLength(4);
+  });
+
+  it('includes the chip row between the provider tabs and the close button', () => {
+    contentComposer();
+    startPicker(descriptor(), mixedTyped, typedProviders);
+    openFromFab();
+    const { panel, input, shadow } = ui();
+
+    const children = Array.from(panel.children).map((child) => (child as HTMLElement).className);
+    expect(children).toEqual(['head', 'tabs', 'tabs type-bar', 'grid', 'sr-status']);
+
+    const overlaying = typeChips()[2]!;
+    overlaying.focus();
+    const event = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    });
+    overlaying.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(shadow.activeElement).toBe(overlaying);
+
+    input.focus();
+    key(input, 'Tab', { shiftKey: true });
+    const rovingCell = cells()[0]!;
+    expect(shadow.activeElement).toBe(rovingCell);
+  });
+
+  it('keeps the chosen chip across close and reopen', () => {
+    contentComposer();
+    startPicker(descriptor(), mixedTyped, typedProviders);
+    openFromFab();
+    typeChips()[2]!.click();
+    expect(cells()).toHaveLength(2);
+
+    key(ui().input, 'Escape');
+    expect(ui().panel.hidden).toBe(true);
+    openFromFab();
+
+    expect(typeChips()[2]!.getAttribute('aria-selected')).toBe('true');
+    expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual([
+      'over7, overlaying emote',
+      'overB, overlaying emote',
+    ]);
   });
 });
 

@@ -1,5 +1,6 @@
 import { EmotePicker } from '../../src/picker/picker';
-import type { Emote, PluginDescriptor } from '../../src/core/types';
+import { encodeProviders } from '../../src/core/provider-chars';
+import type { Emote, EmoteProvider, PluginDescriptor } from '../../src/core/types';
 
 const ids = [
   ['Clueless', '01F6T8NM9R0007M5BTFWSP1YSJ'],
@@ -12,11 +13,14 @@ const ids = [
   ['KEKW', '01F61B1440000991F7SWQNMVX7'],
 ] as const;
 
-const emotes: Emote[] = ids.map(([code, id]) => ({
+// Mixed providers so the dev preview shows the provider tabs.
+const providers: EmoteProvider[] = ['7tv', '7tv', 'bttv', 'bttv', 'ffz', '7tv', 'twitch', 'custom'];
+
+const emotes: Emote[] = ids.map(([code, id], index) => ({
   code,
   url: `https://cdn.7tv.app/emote/${id}/2x.webp`,
   flags: 0,
-  provider: '7tv',
+  provider: providers[index] ?? '7tv',
 }));
 
 const descriptor: PluginDescriptor = {
@@ -32,7 +36,7 @@ const descriptor: PluginDescriptor = {
   composer: { selectors: ['#composer'], kind: 'contenteditable' },
 };
 
-const picker = new EmotePicker(descriptor, emotes, { pickerEnabled: true });
+const picker = new EmotePicker(descriptor, emotes, { pickerEnabled: true }, encodeProviders(emotes));
 picker.start();
 
 window.setTimeout(() => {

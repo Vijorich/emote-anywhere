@@ -25,6 +25,7 @@ describe('persistent registration store', () => {
     const store = await loadStore();
     const registration = {
       emotes: [{ code: 'catJAM', url: 'https://cdn.7tv.app/emote/1/2x.webp', flags: 0 }],
+      providers: '7',
       sources: ['7tv:global'],
       errors: [],
       binding: null,
@@ -38,6 +39,7 @@ describe('persistent registration store', () => {
     const store = await loadStore();
     await store.putStoredRegistration('a|b', {
       emotes: [],
+      providers: '',
       sources: [],
       errors: [],
       binding: null,

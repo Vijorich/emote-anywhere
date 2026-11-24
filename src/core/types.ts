@@ -155,6 +155,8 @@ export interface PluginMatch {
 
 export interface ChatRegistration {
   emotes: ChatEmote[];
+  /** One char per emote in `emotes`, aligned by index (see core/provider-chars). */
+  providers: string;
   sources: string[];
   errors: string[];
   binding: Binding | null;
