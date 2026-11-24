@@ -927,6 +927,36 @@ describe('EmotePicker type filters', () => {
     expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual(['plain7']);
   });
 
+  it('blames the filters, not the search, when a filter combo empties the grid', () => {
+    // 7tv carries only a standard emote, so 7TV + Overlaying yields nothing
+    // even with an empty search box.
+    const skewed: Emote[] = [
+      { code: 'plain7', url: 'https://cdn.example/plain7.png', flags: 0, provider: '7tv' },
+      {
+        code: 'overB',
+        url: 'https://cdn.example/overB.png',
+        flags: ZERO_WIDTH_DATA_FLAG,
+        provider: 'bttv',
+      },
+    ];
+    contentComposer();
+    startPicker(descriptor(), skewed, '7b');
+    openFromFab();
+
+    providerTabs()[1]!.click();
+    typeChips()[2]!.click();
+    expect(cells()).toHaveLength(0);
+    expect(ui().grid.querySelector('.empty')?.textContent).toBe(
+      'No emotes match the selected filters.',
+    );
+
+    // Typing a query switches the wording back to blaming the search.
+    const { input } = ui();
+    input.value = 'zzz';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(ui().grid.querySelector('.empty')?.textContent).toBe('No emotes match this search.');
+  });
+
   it('Enter and Space on a focused chip activate it instead of inserting an emote', () => {
     const composer = contentComposer();
     startPicker(descriptor(), mixedTyped, typedProviders);

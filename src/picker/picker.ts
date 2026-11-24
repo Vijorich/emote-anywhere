@@ -75,11 +75,15 @@ function overlayIcon(): SVGSVGElement {
 }
 
 const PANEL_CSS = `
-/* Mirror of the colour tokens in src/ui/theme.css. Update both. */
+/* Mirror of the colour tokens in src/ui/theme.css. Update both.
+   --ea-cell is picker-only (no theme.css counterpart): cells and tabs need a
+   slightly deeper base than --ea-raised to stay delineated on the white
+   light-mode panel. */
 :host {
   all: initial;
   --ea-surface: #181f1a;
   --ea-raised: #202922;
+  --ea-cell: #202922;
   --ea-control: #3c4a40;
   --ea-line: #6b7870;
   --ea-text: #f2f6f2;
@@ -97,6 +101,7 @@ const PANEL_CSS = `
   :host {
     --ea-surface: #ffffff;
     --ea-raised: #ebf1ed;
+    --ea-cell: #dfe7e2;
     --ea-control: #d2ddd5;
     --ea-line: #7d8680;
     --ea-text: #101411;
@@ -118,9 +123,11 @@ button, input { font: inherit; color: inherit; }
   border: 0; border-radius: 8px;
   background: var(--ea-accent); color: var(--ea-accent-ink);
   cursor: pointer; box-shadow: 0 8px 16px rgba(0,0,0,.28);
-  transition: background-color 120ms ease, color 120ms ease;
+  transition: background-color 120ms ease, color 120ms ease, opacity 120ms ease;
 }
 .fab:hover { background: var(--ea-text); color: var(--ea-surface); }
+/* While the panel is open the FAB is only the toggle; dim it so the panel leads. */
+.fab[aria-expanded="true"] { opacity: .6; }
 .fab:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--ea-surface), 0 0 0 4px var(--ea-accent), 0 8px 16px rgba(0,0,0,.28);
@@ -143,7 +150,7 @@ button, input { font: inherit; color: inherit; }
 @media (max-height: 520px) {
   .panel { top: 8px; bottom: 8px; max-height: none; }
 }
-.head { display: flex; gap: 8px; padding: 16px; }
+.head { position: relative; display: flex; flex: none; gap: 8px; padding: 16px; }
 .search {
   flex: 1; min-width: 0; min-height: 40px; padding: 0 16px;
   border: 0; border-radius: 8px;
@@ -151,6 +158,8 @@ button, input { font: inherit; color: inherit; }
   font-size: 16px; line-height: normal;
   transition: background-color 120ms ease, box-shadow 120ms ease;
 }
+/* Room for the in-field clear button when it is visible. */
+.search.has-clear { padding-right: 44px; }
 .search::placeholder { color: var(--ea-text); opacity: 0.68; }
 .search:focus, .search:focus-visible {
   background: var(--ea-control);
@@ -160,6 +169,20 @@ button, input { font: inherit; color: inherit; }
 .search.kbd:focus {
   box-shadow: 0 0 0 2px var(--ea-accent);
 }
+/* 16px head padding + 40px close button + 8px gap + 6px inset from the input edge. */
+.search-clear {
+  position: absolute; right: 70px; top: 50%; transform: translateY(-50%);
+  display: grid; place-items: center; width: 28px; height: 28px; padding: 0;
+  border: 0; border-radius: 6px;
+  background: transparent; color: var(--ea-muted); cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.search-clear:hover { background: var(--ea-control); color: var(--ea-text); }
+.search-clear:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ea-accent);
+}
+.search-clear svg { display: block; }
 .close {
   display: grid; place-items: center; width: 40px; height: 40px; padding: 0;
   border: 0; border-radius: 8px;
@@ -169,16 +192,35 @@ button, input { font: inherit; color: inherit; }
 .close:hover { background: var(--ea-control); color: var(--ea-text); }
 .close svg { display: block; }
 .tabs {
+  /* flex:none keeps the pill rows at full height when the grid overflows the
+     panel; overflow-x:auto zeroes their automatic minimum size, so without it
+     the panel's flex column crushes them to a sliver. */
+  flex: none;
   display: flex; gap: 8px; padding: 0 16px 12px;
   overflow-x: auto; scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  /* Keep the 16px side padding inside the snapport so the first pill does
+     not get snapped 16px into the scroll range on mount. */
+  scroll-padding: 0 16px;
+}
+/* Edge fades hint that the pill row scrolls; toggled from picker.ts. */
+.tabs.overflow-right {
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
+.tabs.overflow-left {
+  mask-image: linear-gradient(to right, transparent, #000 32px);
+}
+.tabs.overflow-left.overflow-right {
+  mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
 }
 .tabs::-webkit-scrollbar { display: none; }
 .type-bar { padding-top: 0; }
 .type-bar .tab { min-height: 28px; padding: 0 8px; font-size: 12px; }
 .tab {
   flex: 0 0 auto; min-height: 32px; padding: 0 12px;
+  scroll-snap-align: start;
   border: 0; border-radius: 8px;
-  background: var(--ea-raised); color: var(--ea-muted);
+  background: var(--ea-cell); color: var(--ea-muted);
   font-size: 13px; font-weight: 600; line-height: 1;
   white-space: nowrap; cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
@@ -213,10 +255,23 @@ button, input { font: inherit; color: inherit; }
 .cell {
   position: relative;
   height: 48px; display: grid; place-items: center; padding: 8px;
-  border: 0; border-radius: 8px; background: var(--ea-raised);
+  border: 0; border-radius: 8px; background: var(--ea-cell);
   cursor: pointer; overflow: hidden;
   transition: background-color 120ms ease, transform 120ms ease;
   -webkit-touch-callout: none; user-select: none; touch-action: manipulation;
+}
+/* Calm pulse on cells whose image has not resolved yet; suppressed once the
+   image loads (.loaded) or the failure path takes over (.failed). */
+.cell:not(.loaded):not(.failed)::after {
+  position: absolute; inset: 0;
+  background: var(--ea-control);
+  content: '';
+  opacity: 0; pointer-events: none;
+  animation: ea-cell-pulse 1.2s ease-in-out infinite alternate;
+}
+@keyframes ea-cell-pulse {
+  from { opacity: 0; }
+  to { opacity: .35; }
 }
 .cell:hover { background: var(--ea-control); }
 .cell.pressed { transform: scale(.96); }
@@ -254,6 +309,7 @@ button, input { font: inherit; color: inherit; }
   max-height: calc(100dvh - 24px);
   padding: 24px; overflow: auto;
   pointer-events: auto;
+  border: 1px solid color-mix(in srgb, var(--ea-text) 12%, transparent);
   border-radius: 16px;
   background: var(--ea-surface);
   box-shadow: 0 24px 64px rgba(0,0,0,.45);
@@ -283,12 +339,13 @@ button, input { font: inherit; color: inherit; }
   to { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cell, .tab, .zoom-card { transition: none; animation: none; }
+  .cell, .cell::after, .tab, .zoom-card { transition: none; animation: none; }
   .cell.pressed { transform: none; }
 }
 @media (pointer: coarse) {
   .fab { width: 48px; height: 48px; }
   .close { width: 48px; height: 48px; }
+  .search-clear { right: 78px; }
   .search { min-height: 48px; font-size: 16px; }
   .tab { min-height: 44px; padding: 0 16px; font-size: 14px; }
   .type-bar .tab { min-height: 40px; }
@@ -301,7 +358,11 @@ button, input { font: inherit; color: inherit; }
   position: absolute; width: 1px; height: 1px; margin: -1px;
   overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
-.empty { padding: 32px 24px; text-align: center; color: var(--ea-muted); font-size: 16px; line-height: 1.5; }
+.empty {
+  /* The empty message is a direct child of the grid; span every column. */
+  grid-column: 1 / -1;
+  padding: 32px 24px; text-align: center; color: var(--ea-muted); font-size: 16px; line-height: 1.5;
+}
 `;
 
 export class EmotePicker {
@@ -324,6 +385,7 @@ export class EmotePicker {
   private grid: HTMLDivElement | null = null;
   private fab: HTMLButtonElement | null = null;
   private closeButton: HTMLButtonElement | null = null;
+  private clearButton: HTMLButtonElement | null = null;
   private status: HTMLDivElement | null = null;
   private zoom: HTMLDivElement | null = null;
   private zoomImage: HTMLImageElement | null = null;
@@ -378,6 +440,11 @@ export class EmotePicker {
 
   private readonly onIntentPointer = (): void => {
     this.keyboardFocus = false;
+  };
+
+  private readonly onWindowResize = (): void => {
+    this.updateTabsOverflow(this.tabsBar);
+    this.updateTabsOverflow(this.typeBar);
   };
 
   private readonly onGridPointerDown = (event: PointerEvent): void => {
@@ -464,6 +531,7 @@ export class EmotePicker {
     document.addEventListener('keydown', this.onDocumentKeyDown, true);
     document.addEventListener('pointerdown', this.onIntentPointer, true);
     document.addEventListener('keydown', this.onIntentKey, true);
+    window.addEventListener('resize', this.onWindowResize);
     this.checkTimer = window.setInterval(() => this.refreshComposer(), 1000);
     this.refreshComposer();
   }
@@ -475,6 +543,7 @@ export class EmotePicker {
     document.removeEventListener('keydown', this.onDocumentKeyDown, true);
     document.removeEventListener('pointerdown', this.onIntentPointer, true);
     document.removeEventListener('keydown', this.onIntentKey, true);
+    window.removeEventListener('resize', this.onWindowResize);
     this.endPreview();
     if (this.checkTimer !== null) {
       window.clearInterval(this.checkTimer);
@@ -498,6 +567,7 @@ export class EmotePicker {
     this.grid = null;
     this.fab = null;
     this.closeButton = null;
+    this.clearButton = null;
     this.status = null;
     this.zoom = null;
     this.zoomImage = null;
@@ -636,10 +706,29 @@ export class EmotePicker {
     input.spellcheck = false;
     input.addEventListener('input', () => {
       this.selected = -1;
+      this.updateClearButton();
       this.scheduleGridRender();
     });
     input.addEventListener('focus', () => {
       input.classList.toggle('kbd', this.keyboardFocus);
+    });
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'search-clear';
+    clear.hidden = true;
+    clear.append(crossIcon(14));
+    clear.setAttribute('aria-label', 'Clear search');
+    clear.addEventListener('click', () => {
+      if (!this.input) return;
+      this.input.value = '';
+      this.selected = -1;
+      this.updateClearButton();
+      if (this.renderTimer !== null) {
+        window.clearTimeout(this.renderTimer);
+        this.renderTimer = null;
+      }
+      this.renderGrid();
+      this.input.focus();
     });
     const close = document.createElement('button');
     close.type = 'button';
@@ -647,7 +736,7 @@ export class EmotePicker {
     close.append(crossIcon(18));
     close.setAttribute('aria-label', 'Close emote picker');
     close.addEventListener('click', () => this.close(true));
-    head.append(input, close);
+    head.append(input, clear, close);
 
     // Provider tabs appear only when the registration carried provider data;
     // tabs for providers with no emotes in the list are noise.
@@ -676,6 +765,7 @@ export class EmotePicker {
         tabButtons.push(tab);
       }
       tabsBar.append(...tabButtons);
+      tabsBar.addEventListener('scroll', () => this.updateTabsOverflow(tabsBar), { passive: true });
     }
 
     // Type chips appear only when the list mixes standard and overlaying
@@ -712,6 +802,7 @@ export class EmotePicker {
         typeButtons.push(chip);
       }
       typeBar.append(...typeButtons);
+      typeBar.addEventListener('scroll', () => this.updateTabsOverflow(typeBar), { passive: true });
     }
 
     const grid = document.createElement('div');
@@ -733,6 +824,17 @@ export class EmotePicker {
       { passive: false },
     );
     grid.addEventListener('scroll', () => this.endPreview(), { passive: true });
+    // Image load events do not bubble, but they do reach capture-phase
+    // listeners on ancestors; mark the cell so the loading pulse stops.
+    grid.addEventListener(
+      'load',
+      (event) => {
+        const img = event.target;
+        if (!(img instanceof HTMLImageElement)) return;
+        img.closest('.cell')?.classList.add('loaded');
+      },
+      true,
+    );
     grid.addEventListener('focusin', (event) => {
       if (this.pointerActive) return;
       const cell = (event.target as Element | null)?.closest<HTMLButtonElement>('.cell');
@@ -806,6 +908,7 @@ export class EmotePicker {
     this.typeButtons = typeButtons;
     this.grid = grid;
     this.closeButton = close;
+    this.clearButton = clear;
     this.status = status;
     this.zoom = zoom;
     this.zoomImage = zoomImage;
@@ -832,6 +935,7 @@ export class EmotePicker {
     this.fab?.setAttribute('aria-expanded', 'true');
     this.input.setAttribute('aria-expanded', 'true');
     this.input.value = '';
+    this.updateClearButton();
     this.selected = -1;
     if (this.renderTimer !== null) {
       window.clearTimeout(this.renderTimer);
@@ -983,6 +1087,7 @@ export class EmotePicker {
     );
     const focusables: HTMLElement[] = [
       ...(this.input ? [this.input] : []),
+      ...(this.clearButton && !this.clearButton.hidden ? [this.clearButton] : []),
       ...this.tabButtons,
       ...this.typeButtons,
       ...(this.closeButton ? [this.closeButton] : []),
@@ -1078,6 +1183,23 @@ export class EmotePicker {
 
   private setStatus(text: string): void {
     if (this.status) this.status.textContent = text;
+  }
+
+  /** Show the in-field clear (×) only while the query is non-empty. */
+  private updateClearButton(): void {
+    if (!this.input || !this.clearButton) return;
+    const show = this.input.value.length > 0;
+    this.clearButton.hidden = !show;
+    this.input.classList.toggle('has-clear', show);
+  }
+
+  /** Toggle the edge fades that hint a tab row scrolls past its visible width. */
+  private updateTabsOverflow(bar: HTMLDivElement | null): void {
+    if (!bar) return;
+    const maxScroll = bar.scrollWidth - bar.clientWidth;
+    const overflows = maxScroll > 1;
+    bar.classList.toggle('overflow-left', overflows && bar.scrollLeft > 1);
+    bar.classList.toggle('overflow-right', overflows && bar.scrollLeft < maxScroll - 1);
   }
 
   private insertSelected(): void {
@@ -1252,9 +1374,13 @@ export class EmotePicker {
     if (!this.visible.length) {
       const empty = document.createElement('div');
       empty.className = 'empty';
-      empty.textContent = this.emotes.length
-        ? 'No emotes match this search.'
-        : 'No emotes yet. Add a set from the extension popup.';
+      // Blame the search only when one was typed; an empty query with a
+      // provider/type filter active is the filter's doing, not the search's.
+      empty.textContent = !this.emotes.length
+        ? 'No emotes yet. Add a set from the extension popup.'
+        : filter
+          ? 'No emotes match this search.'
+          : 'No emotes match the selected filters.';
       this.grid.append(empty);
       this.setStatus(empty.textContent);
     } else {
@@ -1313,5 +1439,7 @@ export class EmotePicker {
       this.grid.append(fragment);
     }
     this.grid.scrollTop = 0;
+    this.updateTabsOverflow(this.tabsBar);
+    this.updateTabsOverflow(this.typeBar);
   }
 }

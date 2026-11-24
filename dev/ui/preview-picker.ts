@@ -1,4 +1,5 @@
 import { EmotePicker } from '../../src/picker/picker';
+import { ZERO_WIDTH_ACTIVE_FLAG } from '../../src/core/emote-flags';
 import { encodeProviders } from '../../src/core/provider-chars';
 import type { Emote, EmoteProvider, PluginDescriptor } from '../../src/core/types';
 
@@ -19,7 +20,9 @@ const providers: EmoteProvider[] = ['7tv', '7tv', 'bttv', 'bttv', 'ffz', '7tv', 
 const emotes: Emote[] = ids.map(([code, id], index) => ({
   code,
   url: `https://cdn.7tv.app/emote/${id}/2x.webp`,
-  flags: 0,
+  // One overlaying emote so the preview exercises the type chips, the
+  // overlay cell tint/badge, and the zoom "Overlaying" flag.
+  flags: index === 2 ? ZERO_WIDTH_ACTIVE_FLAG : 0,
   provider: providers[index] ?? '7tv',
 }));
 

@@ -195,6 +195,17 @@ body {
   padding: 0 var(--space-1) var(--space-1);
 }
 
+/* The footer's quiet buttons read as plain text on the popup frame; give
+   them a filled base so they look tappable. */
+.popup-foot .btn.quiet {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.popup-foot .btn.quiet:hover {
+  background: var(--active);
+}
+
 .size-panel .range-row {
   margin-top: var(--space-3);
 }
