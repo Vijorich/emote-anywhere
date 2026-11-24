@@ -223,12 +223,6 @@ h3[tabindex='-1']:focus-visible {
   gap: var(--space-1);
 }
 
-.nav-label {
-  padding: 0 var(--space-2) var(--space-2);
-  color: var(--faint);
-  font-size: var(--fs-small);
-}
-
 .nav-link {
   display: flex;
   align-items: center;

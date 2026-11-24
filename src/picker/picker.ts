@@ -174,7 +174,7 @@ button, input { font: inherit; color: inherit; }
 }
 .tabs::-webkit-scrollbar { display: none; }
 .type-bar { padding-top: 0; }
-.type-bar .tab { min-height: 28px; padding: 0 10px; font-size: 12px; }
+.type-bar .tab { min-height: 28px; padding: 0 8px; font-size: 12px; }
 .tab {
   flex: 0 0 auto; min-height: 32px; padding: 0 12px;
   border: 0; border-radius: 8px;
@@ -271,8 +271,8 @@ button, input { font: inherit; color: inherit; }
 }
 .zoom-flag {
   position: absolute; top: 8px; right: 8px; z-index: 1;
-  display: inline-flex; gap: 5px; align-items: center; min-height: 22px;
-  padding: 0 7px; border-radius: 6px;
+  display: inline-flex; gap: 4px; align-items: center; min-height: 22px;
+  padding: 0 8px; border-radius: 6px;
   background: var(--ea-overlay-soft); color: var(--ea-overlay);
   font-size: 12px; font-weight: 600; line-height: 1;
   pointer-events: none;

@@ -250,7 +250,7 @@ function bindingCard(plugin: InstalledPlugin): HTMLElement {
       ? h('div', { class: 'chips' }, ...chips)
       : h('p', {
           class: 'section-note',
-          text: 'No 7TV set for this chat. Add one below.',
+          text: 'No 7TV set for this chat.',
         }),
     h(
       'form',

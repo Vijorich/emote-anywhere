@@ -63,7 +63,7 @@ export function sourcesView(current: AppState, ctx: OptionsContext): HTMLElement
       )
     : h('div', { class: 'empty' }, 'No custom sets yet.');
 
-  const nameInput = h('input', { class: 'input', type: 'text', placeholder: 'Set name' });
+  const nameInput = h('input', { class: 'input', type: 'text', placeholder: 'My emotes' });
   const jsonInput = h('textarea', {
     class: 'textarea',
     placeholder:
@@ -339,7 +339,7 @@ function registryPanel(
       : h(
           'div',
           { class: 'empty' },
-          'No plugins in this registry. Refresh it above.',
+          'No plugins in this registry. Refresh it to load them.',
         ),
   );
 }
