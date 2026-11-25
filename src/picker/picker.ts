@@ -140,7 +140,8 @@ button, input { font: inherit; color: inherit; }
 .panel {
   position: fixed; right: 24px; bottom: 144px;
   width: min(440px, calc(100% - 48px));
-  max-height: min(560px, calc(100dvh - 168px));
+  /* Fixed height keeps the panel one size regardless of emote count. */
+  height: min(560px, calc(100dvh - 168px));
   display: flex; flex-direction: column; overflow: hidden;
   background: var(--ea-surface); color: var(--ea-text);
   border-radius: 16px;
@@ -148,7 +149,7 @@ button, input { font: inherit; color: inherit; }
   z-index: 2147483647;
 }
 @media (max-height: 520px) {
-  .panel { top: 8px; bottom: 8px; max-height: none; }
+  .panel { top: 8px; bottom: 8px; height: auto; }
 }
 .head { position: relative; display: flex; flex: none; gap: 8px; padding: 16px; }
 .search {
@@ -191,17 +192,34 @@ button, input { font: inherit; color: inherit; }
 }
 .close:hover { background: var(--ea-control); color: var(--ea-text); }
 .close svg { display: block; }
+.filter-row {
+  flex: none;
+  padding: 0 16px 12px;
+}
+/* The type row is a secondary filter; a hairline and extra gap keep the two
+   pill rows from reading as one group of options. */
+.filter-row.type-row {
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--ea-text) 10%, transparent);
+}
+.filter-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--ea-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+}
 .tabs {
   /* flex:none keeps the pill rows at full height when the grid overflows the
      panel; overflow-x:auto zeroes their automatic minimum size, so without it
      the panel's flex column crushes them to a sliver. */
   flex: none;
-  display: flex; gap: 8px; padding: 0 16px 12px;
+  display: flex; gap: 8px;
   overflow-x: auto; scrollbar-width: none;
   scroll-snap-type: x proximity;
-  /* Keep the 16px side padding inside the snapport so the first pill does
-     not get snapped 16px into the scroll range on mount. */
-  scroll-padding: 0 16px;
 }
 /* Edge fades hint that the pill row scrolls; toggled from picker.ts. */
 .tabs.overflow-right {
@@ -214,10 +232,10 @@ button, input { font: inherit; color: inherit; }
   mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
 }
 .tabs::-webkit-scrollbar { display: none; }
-.type-bar { padding-top: 0; }
 .type-bar .tab { min-height: 28px; padding: 0 8px; font-size: 12px; }
 .tab {
   flex: 0 0 auto; min-height: 32px; padding: 0 12px;
+  display: inline-flex; align-items: center; gap: 6px;
   scroll-snap-align: start;
   border: 0; border-radius: 8px;
   background: var(--ea-cell); color: var(--ea-muted);
@@ -226,16 +244,26 @@ button, input { font: inherit; color: inherit; }
   transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
 }
 .tab:hover { background: var(--ea-control); color: var(--ea-text); }
-.tab[aria-selected="true"] {
-  background: var(--ea-accent-soft); color: var(--ea-accent);
-  box-shadow: inset 0 0 0 2px var(--ea-accent);
+/* Active pills use the solid accent fill so the state reads at a glance,
+   matching the FAB; the overlay chip mirrors the overlay cells in pink. */
+.tab[aria-pressed="true"] {
+  background: var(--ea-accent); color: var(--ea-accent-ink);
+}
+.tab[aria-pressed="true"]:hover {
+  background: var(--ea-accent); color: var(--ea-accent-ink);
+}
+.type-bar .tab[data-type="overlay"][aria-pressed="true"] {
+  background: var(--ea-overlay); color: var(--ea-overlay-soft);
+}
+.type-bar .tab[data-type="overlay"][aria-pressed="true"]:hover {
+  background: var(--ea-overlay); color: var(--ea-overlay-soft);
 }
 .tab:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--ea-accent);
 }
-.tab[aria-selected="true"]:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--ea-accent), 0 0 0 2px var(--ea-accent);
+.type-bar .tab[data-type="overlay"]:focus-visible {
+  box-shadow: 0 0 0 2px var(--ea-overlay);
 }
 .grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
@@ -339,7 +367,7 @@ button, input { font: inherit; color: inherit; }
   to { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cell, .cell::after, .tab, .zoom-card { transition: none; animation: none; }
+  .cell, .cell::after, .tab, .empty-reset, .zoom-card { transition: none; animation: none; }
   .cell.pressed { transform: none; }
 }
 @media (pointer: coarse) {
@@ -352,7 +380,7 @@ button, input { font: inherit; color: inherit; }
 }
 @media (forced-colors: active) {
   .cell.selected { outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }
-  .tab[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }
+  .tab[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }
 }
 .sr-status {
   position: absolute; width: 1px; height: 1px; margin: -1px;
@@ -362,6 +390,20 @@ button, input { font: inherit; color: inherit; }
   /* The empty message is a direct child of the grid; span every column. */
   grid-column: 1 / -1;
   padding: 32px 24px; text-align: center; color: var(--ea-muted); font-size: 16px; line-height: 1.5;
+}
+.empty-reset {
+  margin-top: 12px;
+  min-height: 32px; padding: 0 12px;
+  border: 0; border-radius: 8px;
+  background: var(--ea-cell); color: var(--ea-text);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.empty-reset:hover { background: var(--ea-control); }
+.empty-reset:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ea-accent);
 }
 `;
 
@@ -738,24 +780,31 @@ export class EmotePicker {
     close.addEventListener('click', () => this.close(true));
     head.append(input, clear, close);
 
-    // Provider tabs appear only when the registration carried provider data;
-    // tabs for providers with no emotes in the list are noise.
+    // Provider pills appear only when the registration carried provider data;
+    // pills for providers with no emotes in the list are noise. The row is a
+    // group of toggle buttons (aria-pressed), not a tablist: it switches a
+    // filter, not a panel, so no tab-keyboard contract applies.
     let tabsBar: HTMLDivElement | null = null;
+    let tabsRow: HTMLDivElement | null = null;
     const tabButtons: HTMLButtonElement[] = [];
     const presentTabs = PROVIDER_TABS.filter((tab) => this.providers.includes(tab.char));
     if (presentTabs.length) {
+      tabsRow = document.createElement('div');
+      tabsRow.className = 'filter-row';
+      const label = document.createElement('span');
+      label.className = 'filter-label';
+      label.id = 'ea-filter-provider';
+      label.textContent = 'Provider';
       tabsBar = document.createElement('div');
       tabsBar.className = 'tabs';
-      tabsBar.setAttribute('role', 'tablist');
-      tabsBar.setAttribute('aria-label', 'Emote provider');
+      tabsBar.setAttribute('role', 'group');
+      tabsBar.setAttribute('aria-labelledby', 'ea-filter-provider');
       for (const def of [{ char: '', label: 'All' }, ...presentTabs]) {
         const tab = document.createElement('button');
         tab.type = 'button';
         tab.className = 'tab';
         tab.textContent = def.label;
-        tab.setAttribute('role', 'tab');
-        tab.setAttribute('aria-selected', String(def.char === this.activeProvider));
-        tab.setAttribute('aria-controls', 'ea-emote-grid');
+        tab.setAttribute('aria-pressed', String(def.char === this.activeProvider));
         if (def.char) tab.dataset.provider = def.char;
         // Keep the panel click handler from clearing the fresh grid's roving tab stop.
         tab.addEventListener('click', (event) => {
@@ -766,22 +815,31 @@ export class EmotePicker {
       }
       tabsBar.append(...tabButtons);
       tabsBar.addEventListener('scroll', () => this.updateTabsOverflow(tabsBar), { passive: true });
+      tabsRow.append(label, tabsBar);
     }
 
     // Type chips appear only when the list mixes standard and overlaying
     // emotes; a row that cannot change the result is noise. They reuse the
-    // tab styles and class so keyboard handling matches the provider row.
+    // provider row's pill styles so keyboard handling matches. "Any type"
+    // avoids two stacked pills both reading "All".
     let typeBar: HTMLDivElement | null = null;
+    let typeRow: HTMLDivElement | null = null;
     const typeButtons: HTMLButtonElement[] = [];
     const hasOverlaying = this.emotes.some((emote) => isZeroWidth(emote));
     const hasStandard = this.emotes.some((emote) => !isZeroWidth(emote));
     if (hasOverlaying && hasStandard) {
+      typeRow = document.createElement('div');
+      typeRow.className = 'filter-row type-row';
+      const label = document.createElement('span');
+      label.className = 'filter-label';
+      label.id = 'ea-filter-type';
+      label.textContent = 'Type';
       typeBar = document.createElement('div');
       typeBar.className = 'tabs type-bar';
-      typeBar.setAttribute('role', 'tablist');
-      typeBar.setAttribute('aria-label', 'Emote type');
+      typeBar.setAttribute('role', 'group');
+      typeBar.setAttribute('aria-labelledby', 'ea-filter-type');
       const defs: Array<{ type: '' | 'standard' | 'overlay'; label: string }> = [
-        { type: '', label: 'All' },
+        { type: '', label: 'Any type' },
         { type: 'standard', label: 'Standard' },
         { type: 'overlay', label: 'Overlaying' },
       ];
@@ -789,10 +847,11 @@ export class EmotePicker {
         const chip = document.createElement('button');
         chip.type = 'button';
         chip.className = 'tab';
-        chip.textContent = def.label;
-        chip.setAttribute('role', 'tab');
-        chip.setAttribute('aria-selected', String(def.type === this.activeType));
-        chip.setAttribute('aria-controls', 'ea-emote-grid');
+        // The overlay chip carries the stack icon so the filter control
+        // matches the badge on overlay cells and the zoom flag.
+        if (def.type === 'overlay') chip.append(overlayIcon(), def.label);
+        else chip.textContent = def.label;
+        chip.setAttribute('aria-pressed', String(def.type === this.activeType));
         if (def.type) chip.dataset.type = def.type;
         // Keep the panel click handler from clearing the fresh grid's roving tab stop.
         chip.addEventListener('click', (event) => {
@@ -803,6 +862,7 @@ export class EmotePicker {
       }
       typeBar.append(...typeButtons);
       typeBar.addEventListener('scroll', () => this.updateTabsOverflow(typeBar), { passive: true });
+      typeRow.append(label, typeBar);
     }
 
     const grid = document.createElement('div');
@@ -883,11 +943,11 @@ export class EmotePicker {
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
 
-    if (tabsBar || typeBar) {
+    if (tabsRow || typeRow) {
       panel.append(
         head,
-        ...(tabsBar ? [tabsBar] : []),
-        ...(typeBar ? [typeBar] : []),
+        ...(tabsRow ? [tabsRow] : []),
+        ...(typeRow ? [typeRow] : []),
         grid,
         status,
       );
@@ -952,7 +1012,7 @@ export class EmotePicker {
     this.selected = -1;
     this.input?.removeAttribute('aria-activedescendant');
     for (const tab of this.tabButtons) {
-      tab.setAttribute('aria-selected', String((tab.dataset.provider ?? '') === char));
+      tab.setAttribute('aria-pressed', String((tab.dataset.provider ?? '') === char));
     }
     if (this.renderTimer !== null) {
       window.clearTimeout(this.renderTimer);
@@ -968,13 +1028,35 @@ export class EmotePicker {
     this.selected = -1;
     this.input?.removeAttribute('aria-activedescendant');
     for (const chip of this.typeButtons) {
-      chip.setAttribute('aria-selected', String((chip.dataset.type ?? '') === type));
+      chip.setAttribute('aria-pressed', String((chip.dataset.type ?? '') === type));
     }
     if (this.renderTimer !== null) {
       window.clearTimeout(this.renderTimer);
       this.renderTimer = null;
     }
     this.renderGrid();
+  }
+
+  /** One-click recovery from an over-narrowed search + filter combination. */
+  private resetFilters(): void {
+    if (this.input) this.input.value = '';
+    this.updateClearButton();
+    this.selected = -1;
+    this.input?.removeAttribute('aria-activedescendant');
+    this.activeProvider = '';
+    this.activeType = '';
+    for (const tab of this.tabButtons) {
+      tab.setAttribute('aria-pressed', String(!tab.dataset.provider));
+    }
+    for (const chip of this.typeButtons) {
+      chip.setAttribute('aria-pressed', String(!chip.dataset.type));
+    }
+    if (this.renderTimer !== null) {
+      window.clearTimeout(this.renderTimer);
+      this.renderTimer = null;
+    }
+    this.renderGrid();
+    this.input?.focus();
   }
 
   private scheduleGridRender(): void {
@@ -1040,16 +1122,16 @@ export class EmotePicker {
     }
     const target = event.target as Element | null;
     if (target?.closest('.close')) return;
-    const tab = target?.closest('.tab');
-    if (tab) {
-      // Activate the tab like a native button (jsdom has no key activation,
+    const pill = target?.closest('.tab');
+    if (pill) {
+      // Activate the pill like a native button (jsdom has no key activation,
       // and selectProvider is idempotent if a browser also fires a click).
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
-        (tab as HTMLElement).click();
+        (pill as HTMLElement).click();
         return;
       }
-      // Keep arrows from moving the grid selection while a tab is focused.
+      // Keep arrows from moving the grid selection while a filter pill is focused.
       if (event.key.startsWith('Arrow')) return;
     }
     if (event.key === 'Enter' && event.shiftKey) {
@@ -1085,6 +1167,9 @@ export class EmotePicker {
     const cells = Array.from(
       this.grid?.querySelectorAll<HTMLButtonElement>('.cell[tabindex="0"]') ?? [],
     );
+    // The empty-state reset button only exists while the grid is empty and
+    // something is filtered; trapFocus queries the DOM fresh each call.
+    const emptyReset = this.grid?.querySelector<HTMLButtonElement>('.empty-reset');
     const focusables: HTMLElement[] = [
       ...(this.input ? [this.input] : []),
       ...(this.clearButton && !this.clearButton.hidden ? [this.clearButton] : []),
@@ -1092,6 +1177,7 @@ export class EmotePicker {
       ...this.typeButtons,
       ...(this.closeButton ? [this.closeButton] : []),
       ...cells,
+      ...(emptyReset ? [emptyReset] : []),
     ];
     if (focusables.length < 2) return;
     const active = this.shadow?.activeElement as HTMLElement | null;
@@ -1374,15 +1460,30 @@ export class EmotePicker {
     if (!this.visible.length) {
       const empty = document.createElement('div');
       empty.className = 'empty';
+      const narrowed = Boolean(filter) || Boolean(provider) || Boolean(type);
       // Blame the search only when one was typed; an empty query with a
       // provider/type filter active is the filter's doing, not the search's.
-      empty.textContent = !this.emotes.length
+      // When both are active, name both so the hint matches what must change.
+      const message = !this.emotes.length
         ? 'No emotes yet. Add a set from the extension popup.'
-        : filter
-          ? 'No emotes match this search.'
-          : 'No emotes match the selected filters.';
+        : filter && (provider || type)
+          ? 'No emotes match the current search and filters.'
+          : filter
+            ? 'No emotes match this search.'
+            : 'No emotes match the selected filters.';
+      empty.append(message);
+      // A dead end caused by narrowing needs a one-click way out; an empty
+      // library has nothing to reset.
+      if (this.emotes.length && narrowed) {
+        const reset = document.createElement('button');
+        reset.type = 'button';
+        reset.className = 'empty-reset';
+        reset.textContent = 'Clear search and filters';
+        reset.addEventListener('click', () => this.resetFilters());
+        empty.append(reset);
+      }
       this.grid.append(empty);
-      this.setStatus(empty.textContent);
+      this.setStatus(message);
     } else {
       const fragment = document.createDocumentFragment();
       this.visible.forEach((emote, index) => {

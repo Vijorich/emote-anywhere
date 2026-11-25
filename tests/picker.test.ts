@@ -610,13 +610,12 @@ describe('EmotePicker provider tabs', () => {
     openFromFab();
 
     const bar = ui().panel.querySelector('.tabs');
-    expect(bar?.getAttribute('role')).toBe('tablist');
-    expect(bar?.getAttribute('aria-label')).toBe('Emote provider');
+    expect(bar?.getAttribute('role')).toBe('group');
+    expect(bar?.getAttribute('aria-labelledby')).toBe('ea-filter-provider');
+    expect(ui().panel.querySelector('#ea-filter-provider')?.textContent).toBe('Provider');
     expect(tabLabels()).toEqual(['All', '7TV', 'BTTV', 'Twitch', 'Custom']);
-    expect(tabs().every((tab) => tab.getAttribute('role') === 'tab')).toBe(true);
-    expect(tabs().every((tab) => tab.getAttribute('aria-controls') === 'ea-emote-grid')).toBe(true);
-    expect(tabs()[0]!.getAttribute('aria-selected')).toBe('true');
-    expect(tabs().slice(1).every((tab) => tab.getAttribute('aria-selected') === 'false')).toBe(true);
+    expect(tabs()[0]!.getAttribute('aria-pressed')).toBe('true');
+    expect(tabs().slice(1).every((tab) => tab.getAttribute('aria-pressed') === 'false')).toBe(true);
   });
 
   it('renders no tab bar without provider data', () => {
@@ -635,7 +634,7 @@ describe('EmotePicker provider tabs', () => {
     expect(cells()).toHaveLength(7);
   });
 
-  it('clicking a tab filters the grid and updates aria-selected; All restores', () => {
+  it('clicking a tab filters the grid and updates aria-pressed; All restores', () => {
     contentComposer();
     startPicker(descriptor(), emotes, mixed);
     openFromFab();
@@ -643,17 +642,17 @@ describe('EmotePicker provider tabs', () => {
 
     bttv!.click();
     expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual(['one', 'two', 'three']);
-    expect(bttv!.getAttribute('aria-selected')).toBe('true');
-    expect(all!.getAttribute('aria-selected')).toBe('false');
+    expect(bttv!.getAttribute('aria-pressed')).toBe('true');
+    expect(all!.getAttribute('aria-pressed')).toBe('false');
 
     sevenTv!.click();
     expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual(['zero']);
-    expect(sevenTv!.getAttribute('aria-selected')).toBe('true');
-    expect(bttv!.getAttribute('aria-selected')).toBe('false');
+    expect(sevenTv!.getAttribute('aria-pressed')).toBe('true');
+    expect(bttv!.getAttribute('aria-pressed')).toBe('false');
 
     all!.click();
     expect(cells()).toHaveLength(7);
-    expect(all!.getAttribute('aria-selected')).toBe('true');
+    expect(all!.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('keeps the chosen tab across close and reopen', () => {
@@ -667,7 +666,7 @@ describe('EmotePicker provider tabs', () => {
     expect(ui().panel.hidden).toBe(true);
     openFromFab();
 
-    expect(tabs()[2]!.getAttribute('aria-selected')).toBe('true');
+    expect(tabs()[2]!.getAttribute('aria-pressed')).toBe('true');
     expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual(['one', 'two', 'three']);
   });
 
@@ -695,7 +694,9 @@ describe('EmotePicker provider tabs', () => {
     input.dispatchEvent(new Event('input', { bubbles: true }));
     bttv!.click();
     expect(cells()).toHaveLength(0);
-    expect(ui().grid.querySelector('.empty')?.textContent).toBe('No emotes match this search.');
+    expect(ui().grid.querySelector('.empty')?.textContent).toContain(
+      'No emotes match the current search and filters.',
+    );
   });
 
   it('Enter and Space on a focused tab activate it instead of inserting an emote', () => {
@@ -708,7 +709,7 @@ describe('EmotePicker provider tabs', () => {
     bttv.focus();
     key(bttv, 'Enter');
     expect(composer.textContent).toBe('AB');
-    expect(bttv.getAttribute('aria-selected')).toBe('true');
+    expect(bttv.getAttribute('aria-pressed')).toBe('true');
     expect(cells()).toHaveLength(3);
     expect(shadow.activeElement).toBe(bttv);
 
@@ -717,7 +718,7 @@ describe('EmotePicker provider tabs', () => {
     key(custom, ' ');
     custom.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', bubbles: true, cancelable: true }));
     expect(composer.textContent).toBe('AB');
-    expect(custom.getAttribute('aria-selected')).toBe('true');
+    expect(custom.getAttribute('aria-pressed')).toBe('true');
     expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual(['six']);
 
     expect(input.getAttribute('aria-activedescendant')).toBeNull();
@@ -736,8 +737,8 @@ describe('EmotePicker provider tabs', () => {
 
     expect(ui().grid.querySelector('.cell.selected')).toBeNull();
     expect(input.getAttribute('aria-activedescendant')).toBeNull();
-    expect(tabs()[0]!.getAttribute('aria-selected')).toBe('true');
-    expect(bttv.getAttribute('aria-selected')).toBe('false');
+    expect(tabs()[0]!.getAttribute('aria-pressed')).toBe('true');
+    expect(bttv.getAttribute('aria-pressed')).toBe('false');
     expect(cells()).toHaveLength(7);
   });
 
@@ -841,19 +842,16 @@ describe('EmotePicker type filters', () => {
     openFromFab();
 
     const bar = ui().panel.querySelector('.type-bar');
-    expect(bar?.getAttribute('role')).toBe('tablist');
-    expect(bar?.getAttribute('aria-label')).toBe('Emote type');
+    expect(bar?.getAttribute('role')).toBe('group');
+    expect(bar?.getAttribute('aria-labelledby')).toBe('ea-filter-type');
+    expect(ui().panel.querySelector('#ea-filter-type')?.textContent).toBe('Type');
     expect(typeChips().map((chip) => chip.textContent)).toEqual([
-      'All',
+      'Any type',
       'Standard',
       'Overlaying',
     ]);
-    expect(typeChips().every((chip) => chip.getAttribute('role') === 'tab')).toBe(true);
-    expect(typeChips().every((chip) => chip.getAttribute('aria-controls') === 'ea-emote-grid')).toBe(
-      true,
-    );
-    expect(typeChips()[0]!.getAttribute('aria-selected')).toBe('true');
-    expect(typeChips().slice(1).every((chip) => chip.getAttribute('aria-selected') === 'false')).toBe(
+    expect(typeChips()[0]!.getAttribute('aria-pressed')).toBe('true');
+    expect(typeChips().slice(1).every((chip) => chip.getAttribute('aria-pressed') === 'false')).toBe(
       true,
     );
   });
@@ -867,7 +865,7 @@ describe('EmotePicker type filters', () => {
     expect(typeChips()).toHaveLength(3);
   });
 
-  it('clicking a chip filters the grid and updates aria-selected; All restores', () => {
+  it('clicking a chip filters the grid and updates aria-pressed; Any type restores', () => {
     contentComposer();
     startPicker(descriptor(), mixedTyped, typedProviders);
     openFromFab();
@@ -878,17 +876,17 @@ describe('EmotePicker type filters', () => {
       'over7, overlaying emote',
       'overB, overlaying emote',
     ]);
-    expect(overlaying!.getAttribute('aria-selected')).toBe('true');
-    expect(all!.getAttribute('aria-selected')).toBe('false');
+    expect(overlaying!.getAttribute('aria-pressed')).toBe('true');
+    expect(all!.getAttribute('aria-pressed')).toBe('false');
 
     standard!.click();
     expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual(['plain7', 'plainB']);
-    expect(standard!.getAttribute('aria-selected')).toBe('true');
-    expect(overlaying!.getAttribute('aria-selected')).toBe('false');
+    expect(standard!.getAttribute('aria-pressed')).toBe('true');
+    expect(overlaying!.getAttribute('aria-pressed')).toBe('false');
 
     all!.click();
     expect(cells()).toHaveLength(4);
-    expect(all!.getAttribute('aria-selected')).toBe('true');
+    expect(all!.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('combines the chip with the search text and the active provider tab', () => {
@@ -919,7 +917,9 @@ describe('EmotePicker type filters', () => {
     input.value = 'zzz';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     expect(cells()).toHaveLength(0);
-    expect(ui().grid.querySelector('.empty')?.textContent).toBe('No emotes match this search.');
+    expect(ui().grid.querySelector('.empty')?.textContent).toContain(
+      'No emotes match the current search and filters.',
+    );
 
     input.value = '';
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -946,15 +946,17 @@ describe('EmotePicker type filters', () => {
     providerTabs()[1]!.click();
     typeChips()[2]!.click();
     expect(cells()).toHaveLength(0);
-    expect(ui().grid.querySelector('.empty')?.textContent).toBe(
+    expect(ui().grid.querySelector('.empty')?.textContent).toContain(
       'No emotes match the selected filters.',
     );
 
-    // Typing a query switches the wording back to blaming the search.
+    // Typing a query names both culprits: the search alone is not to blame.
     const { input } = ui();
     input.value = 'zzz';
     input.dispatchEvent(new Event('input', { bubbles: true }));
-    expect(ui().grid.querySelector('.empty')?.textContent).toBe('No emotes match this search.');
+    expect(ui().grid.querySelector('.empty')?.textContent).toContain(
+      'No emotes match the current search and filters.',
+    );
   });
 
   it('Enter and Space on a focused chip activate it instead of inserting an emote', () => {
@@ -967,7 +969,7 @@ describe('EmotePicker type filters', () => {
     overlaying.focus();
     key(overlaying, 'Enter');
     expect(composer.textContent).toBe('AB');
-    expect(overlaying.getAttribute('aria-selected')).toBe('true');
+    expect(overlaying.getAttribute('aria-pressed')).toBe('true');
     expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual([
       'over7, overlaying emote',
       'overB, overlaying emote',
@@ -979,7 +981,7 @@ describe('EmotePicker type filters', () => {
     key(standard, ' ');
     standard.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', bubbles: true, cancelable: true }));
     expect(composer.textContent).toBe('AB');
-    expect(standard.getAttribute('aria-selected')).toBe('true');
+    expect(standard.getAttribute('aria-pressed')).toBe('true');
     expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual(['plain7', 'plainB']);
 
     expect(input.getAttribute('aria-activedescendant')).toBeNull();
@@ -997,8 +999,8 @@ describe('EmotePicker type filters', () => {
 
     expect(ui().grid.querySelector('.cell.selected')).toBeNull();
     expect(ui().input.getAttribute('aria-activedescendant')).toBeNull();
-    expect(typeChips()[0]!.getAttribute('aria-selected')).toBe('true');
-    expect(overlaying.getAttribute('aria-selected')).toBe('false');
+    expect(typeChips()[0]!.getAttribute('aria-pressed')).toBe('true');
+    expect(overlaying.getAttribute('aria-pressed')).toBe('false');
     expect(cells()).toHaveLength(4);
   });
 
@@ -1009,7 +1011,7 @@ describe('EmotePicker type filters', () => {
     const { panel, input, shadow } = ui();
 
     const children = Array.from(panel.children).map((child) => (child as HTMLElement).className);
-    expect(children).toEqual(['head', 'tabs', 'tabs type-bar', 'grid', 'sr-status']);
+    expect(children).toEqual(['head', 'filter-row', 'filter-row type-row', 'grid', 'sr-status']);
 
     const overlaying = typeChips()[2]!;
     overlaying.focus();
@@ -1040,11 +1042,82 @@ describe('EmotePicker type filters', () => {
     expect(ui().panel.hidden).toBe(true);
     openFromFab();
 
-    expect(typeChips()[2]!.getAttribute('aria-selected')).toBe('true');
+    expect(typeChips()[2]!.getAttribute('aria-pressed')).toBe('true');
     expect(cells().map((cell) => cell.getAttribute('aria-label'))).toEqual([
       'over7, overlaying emote',
       'overB, overlaying emote',
     ]);
+  });
+});
+
+describe('EmotePicker empty-state reset', () => {
+  const mixedTyped: Emote[] = [
+    { code: 'plain7', url: 'https://cdn.example/plain7.png', flags: 0, provider: '7tv' },
+    {
+      code: 'over7',
+      url: 'https://cdn.example/over7.png',
+      flags: ZERO_WIDTH_DATA_FLAG,
+      provider: '7tv',
+    },
+    { code: 'plainB', url: 'https://cdn.example/plainB.png', flags: 0, provider: 'bttv' },
+    {
+      code: 'overB',
+      url: 'https://cdn.example/overB.png',
+      flags: ZERO_WIDTH_DATA_FLAG,
+      provider: 'bttv',
+    },
+  ];
+
+  it('reset button clears the search, both filters, and refocuses the input', () => {
+    contentComposer();
+    startPicker(descriptor(), mixedTyped, '77bb');
+    openFromFab();
+    const { input, shadow } = ui();
+
+    // Type chip "Overlaying" sits after All/7TV/BTTV and Any type/Standard.
+    ui().panel.querySelectorAll<HTMLButtonElement>('.tab')[5]!.click(); // Overlaying
+    input.value = 'zzz';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+
+    const empty = ui().grid.querySelector('.empty')!;
+    expect(empty.textContent).toContain('No emotes match the current search and filters.');
+    const reset = empty.querySelector<HTMLButtonElement>('.empty-reset')!;
+    reset.click();
+
+    expect(input.value).toBe('');
+    expect(ui().grid.querySelector('.empty')).toBeNull();
+    expect(cells()).toHaveLength(4);
+    const pills = ui().panel.querySelectorAll<HTMLButtonElement>('.tab');
+    expect(pills[0]!.getAttribute('aria-pressed')).toBe('true'); // All
+    expect(pills[3]!.getAttribute('aria-pressed')).toBe('true'); // Any type
+    expect(pills[5]!.getAttribute('aria-pressed')).toBe('false'); // Overlaying
+    expect(shadow.activeElement).toBe(input);
+  });
+
+  it('includes the reset button in the Tab focus trap while the grid is empty', () => {
+    contentComposer();
+    startPicker(descriptor(), mixedTyped, '77bb');
+    openFromFab();
+    const { input, shadow } = ui();
+
+    input.value = 'zzz';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    const reset = ui().grid.querySelector<HTMLButtonElement>('.empty-reset')!;
+
+    reset.focus();
+    key(reset, 'Tab');
+    expect(shadow.activeElement).toBe(input);
+  });
+
+  it('shows no reset button when the library itself is empty', () => {
+    contentComposer();
+    startPicker(descriptor(), [], '7');
+    openFromFab();
+
+    expect(ui().grid.querySelector('.empty')?.textContent).toBe(
+      'No emotes yet. Add a set from the extension popup.',
+    );
+    expect(ui().grid.querySelector('.empty-reset')).toBeNull();
   });
 });
 
