@@ -6,6 +6,20 @@ from Conventional Commit subjects when a release pull request is merged;
 entries before that were written by hand. Versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0](https://github.com/Vijorich/emote-anywhere/compare/v1.1.0...v1.2.0) (2026-11-26)
+
+
+### Features
+
+* **picker:** add provider tabs fed by a compact one-char-per-emote sidecar ([3faf217](https://github.com/Vijorich/emote-anywhere/commit/3faf217d25d0a6281db97f773f161349ec1993cc))
+* **picker:** recast filters as labeled toggle groups with a reset ([0ad81fc](https://github.com/Vijorich/emote-anywhere/commit/0ad81fc3e13048bc54e8e953b30aa6b2bac7795e))
+
+
+### Bug Fixes
+
+* **ui:** keep picker rows intact at scale and polish panel states ([3b18873](https://github.com/Vijorich/emote-anywhere/commit/3b18873a3bc7d4a6f3b21e07299fd0f3112fa89a))
+* **ui:** tighten empty-state and form copy, snap picker spacing to scale ([e5b1f45](https://github.com/Vijorich/emote-anywhere/commit/e5b1f453a795849e2af34ed84e1a5bca2a593e3d))
+
 ## [1.1.0](https://github.com/Vijorich/emote-anywhere/compare/v1.0.4...v1.1.0) (2026-11-10)
 
 
